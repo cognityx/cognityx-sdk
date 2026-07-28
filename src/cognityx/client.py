@@ -7,12 +7,13 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from cognityx_ingest import SourceAssetRegistry
+from cognityx_ingest import SourceAssetCleanupService, SourceAssetRegistry
 from cognityx_ingest.control import ControlClient
 from cognityx_resource import ExecutionContext, ResourceContext, load_resource_context
 from cognityx_storage import StorageRuntime
 
 from cognityx.assets import Assets
+from cognityx.cleanup import Cleanup
 from cognityx.doc_bundles import DocBundles
 
 
@@ -34,6 +35,8 @@ class Cogni:
         self._registry: SourceAssetRegistry | None = None
         self._assets: Assets | None = None
         self._doc_bundles: DocBundles | None = None
+        self._cleanup_service: SourceAssetCleanupService | None = None
+        self._cleanup: Cleanup | None = None
         self._lock = RLock()
 
     @classmethod
@@ -106,6 +109,13 @@ class Cogni:
             return self._doc_bundles
 
     @property
+    def cleanup(self) -> Cleanup:
+        with self._lock:
+            if self._cleanup is None:
+                self._cleanup = Cleanup(self)
+            return self._cleanup
+
+    @property
     def source_asset_registry(self) -> SourceAssetRegistry:
         with self._lock:
             if self._registry is None:
@@ -115,6 +125,17 @@ class Cogni:
                     control=self._control,
                 )
             return self._registry
+
+    @property
+    def source_asset_cleanup_service(self) -> SourceAssetCleanupService:
+        with self._lock:
+            if self._cleanup_service is None:
+                self._cleanup_service = SourceAssetCleanupService(
+                    registry=self.source_asset_registry,
+                    storage_runtime=self._storage,
+                    control=self._control,
+                )
+            return self._cleanup_service
 
     def new_execution(self) -> ExecutionContext:
         return ExecutionContext.create(self._context)

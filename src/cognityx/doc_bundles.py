@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from cognityx_ingest.models import DocBundle
+from cognityx_ingest.models import DocBundle, DocBundleDeletionResult
 
 if TYPE_CHECKING:
     from cognityx.client import Cogni
@@ -34,4 +34,23 @@ class DocBundles:
     def resolve(self, path: str, *, create: bool = False) -> DocBundle:
         return self._owner.source_asset_registry.resolve_doc_bundle(
             self._owner.new_execution(), path, create=create
+        )
+
+    def delete(
+        self,
+        bundle_id: str,
+        *,
+        recursive: bool = False,
+        reason: str | None = None,
+    ) -> DocBundleDeletionResult:
+        return self._owner.source_asset_registry.delete_doc_bundle(
+            self._owner.new_execution(),
+            bundle_id,
+            recursive=recursive,
+            reason=reason,
+        )
+
+    def list_deleted(self) -> tuple[DocBundle, ...]:
+        return self._owner.source_asset_registry.list_deleted_doc_bundles(
+            self._owner.new_execution()
         )

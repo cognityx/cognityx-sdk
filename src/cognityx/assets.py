@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, BinaryIO
 
 from cognityx_ingest.models import (
     SourceAsset,
+    SourceAssetDeletionResult,
     SourceAssetLocation,
     SourceAssetRegistrationResult,
 )
@@ -49,4 +50,16 @@ class Assets:
     def locate(self, asset_id: str) -> SourceAssetLocation:
         return self._owner.source_asset_registry.locate_asset(
             self._owner.new_execution(), asset_id
+        )
+
+    def delete(
+        self, asset_id: str, *, reason: str | None = None
+    ) -> SourceAssetDeletionResult:
+        return self._owner.source_asset_registry.delete_asset(
+            self._owner.new_execution(), asset_id, reason=reason
+        )
+
+    def list_deleted(self) -> tuple[SourceAsset, ...]:
+        return self._owner.source_asset_registry.list_deleted_assets(
+            self._owner.new_execution()
         )
