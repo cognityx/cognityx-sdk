@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cognityx"
+version = "0.1.0"
+description = "The primary application-facing Python SDK for Cognityx."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+dependencies = [
+  "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@79f89a965f46300be6a892d4371d44e6c288fd0c",
+  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@598d22b49c6a3d67dcd9d576876fac642527ebbe",
+  "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@800d4861508ddf75271d564df67981989854e0dc",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "mkdocs-material>=9"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cognityx"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[project.urls]
+Homepage = "https://github.com/cognityx/cognityx-sdk"

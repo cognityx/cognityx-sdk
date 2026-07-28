@@ -1,0 +1,10 @@
+site_name: Cognityx Python SDK
+site_description: The primary application-facing Python SDK for Cognityx.
+docs_dir: docs
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Concepts: concepts.md
+  - Architecture: architecture.md
+  - API: api.md
