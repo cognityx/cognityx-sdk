@@ -10,24 +10,21 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
 dependencies = [
-  "cognityx-resource",
-  "cognityx-storage",
-  "cognityx-ingest",
+  "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@79f89a965f46300be6a892d4371d44e6c288fd0c",
+  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@0d159136ebac6ce5362a5092ea4d6d2f181e9c89",
+  "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@8b95584b07b2b2ac3cb3e9f0f1566987b794c2ee",
+  "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@bfd10769703dfca97e6a70b0d242c5ccd961d702",
 ]
 
 [project.scripts]
 cogni = "cognityx.cli:main"
-
-[tool.uv.sources]
-cognityx-resource = { git = "https://github.com/cognityx/cognityx-resource.git", rev = "79f89a965f46300be6a892d4371d44e6c288fd0c" }
-cognityx-storage = { git = "https://github.com/cognityx/cognityx-storage.git", rev = "0d159136ebac6ce5362a5092ea4d6d2f181e9c89" }
-cognityx-ingest = { git = "https://github.com/cognityx/cognityx-ingest.git", rev = "8b95584b07b2b2ac3cb3e9f0f1566987b794c2ee" }
 
 [tool.uv]
 override-dependencies = [
   "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@79f89a965f46300be6a892d4371d44e6c288fd0c",
   "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@0d159136ebac6ce5362a5092ea4d6d2f181e9c89",
   "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@8b95584b07b2b2ac3cb3e9f0f1566987b794c2ee",
+  "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@bfd10769703dfca97e6a70b0d242c5ccd961d702",
 ]
 
 [project.optional-dependencies]

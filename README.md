@@ -28,3 +28,16 @@ cogni cleanup blobs --older-than 7d --yes
 
 Asset deletion is logical and auditable. Blob cleanup is a separate,
 dry-run-first and reference-safe operation.
+
+## Contributing
+
+```bash
+uv sync --extra dev
+uv run pytest
+uv run mkdocs build --strict
+uv build
+uv run python scripts/verify_wheel_install.py
+```
+
+GitHub CI runs these same commands, automatically collects every test below
+`tests/`, and verifies the independently installable wheel.
