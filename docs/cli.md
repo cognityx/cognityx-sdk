@@ -5,6 +5,9 @@ vocabulary:
 
 ```bash
 cogni assets add paper.pdf --bundle phd/rag
+cogni assets add /data/contracts --bundle legal
+cogni assets add /data/contracts --bundle legal --structure flat
+cogni assets add /data/contracts --bundle legal --no-recursive
 cogni assets list --bundle phd/rag
 cogni assets show src-...
 cogni assets locate src-...
@@ -51,6 +54,13 @@ Successful stdout is JSON. Diagnostics go to stderr. Exit codes are `0` for
 success, `1` for operational failure, `2` for arguments or missing
 confirmation, `3` for inaccessible resources, and `4` for authorization
 rejection.
+
+Directory output is the canonical batch JSON result, including safe relative
+paths, bundle paths, counts, statuses, and per-file failures. No caller
+absolute paths are returned. `preserve` is the default and reproduces relative
+folders as DocBundles; `flat` places all files in one DocBundle. Folder
+registration is synchronous in Job 5A. Large durable background execution is
+planned separately.
 
 ## Shared Blob safety
 

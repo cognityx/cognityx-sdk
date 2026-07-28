@@ -11,12 +11,14 @@ import sys
 from typing import Any
 
 from cognityx_ingest.control import IngestAuthorizationError
+from cognityx_ingest.models import SourceAssetBatchResult
 from cognityx_storage import StorageConfig, StorageRuntime
 
 from cognityx.client import Cogni
 from cognityx.serialization import (
     asset_deletion,
     asset_location,
+    batch_registration,
     bundle_deletion,
     description,
     doc_bundle,
@@ -57,8 +59,20 @@ def _parser() -> argparse.ArgumentParser:
     assets = commands.add_parser("assets", help="Manage SourceAssets.")
     asset_commands = assets.add_subparsers(dest="action", required=True)
     add = asset_commands.add_parser("add", parents=[common])
-    add.add_argument("file", type=Path)
+    add.add_argument("path", type=Path)
     add.add_argument("--bundle")
+    add.add_argument(
+        "--structure",
+        choices=("preserve", "flat"),
+        default="preserve",
+    )
+    recursion = add.add_mutually_exclusive_group()
+    recursion.add_argument(
+        "--recursive", dest="recursive", action="store_true", default=True
+    )
+    recursion.add_argument(
+        "--no-recursive", dest="recursive", action="store_false"
+    )
     listing = asset_commands.add_parser("list", parents=[common])
     listing.add_argument("--bundle")
     for name in ("show", "locate"):
@@ -155,7 +169,23 @@ def _execute(args: argparse.Namespace) -> Any:
     cogni = _load(args)
     if args.group == "assets":
         if args.action == "add":
-            return registration(cogni.assets.add(args.file, bundle=args.bundle))
+            result = cogni.assets.add(
+                args.path,
+                bundle=args.bundle,
+                structure=args.structure,
+                recursive=args.recursive,
+            )
+            if isinstance(result, SourceAssetBatchResult) and result.failed_count:
+                print(
+                    f"{result.failed_count} SourceAsset file registration(s) failed; "
+                    "inspect the JSON batch items for safe details.",
+                    file=sys.stderr,
+                )
+            return (
+                batch_registration(result)
+                if isinstance(result, SourceAssetBatchResult)
+                else registration(result)
+            )
         if args.action == "list":
             return [source_asset(item) for item in cogni.assets.list(bundle=args.bundle)]
         if args.action == "show":

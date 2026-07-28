@@ -5,6 +5,7 @@ from pathlib import Path
 from cognityx import Cogni
 from cognityx_ingest import (
     SourceAsset,
+    SourceAssetBatchResult,
     SourceAssetDeletionResult,
     SourceAssetRegistrationResult,
 )
@@ -86,3 +87,37 @@ def test_assets_lifecycle_returns_canonical_models(tmp_path: Path) -> None:
 
         with pytest.raises(KeyError):
             operation()
+
+
+def test_assets_directory_add_delegates_one_execution_for_complete_batch(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "contracts"
+    (source / "india").mkdir(parents=True)
+    (source / "policy.txt").write_bytes(b"policy")
+    (source / "india/agreement.txt").write_bytes(b"agreement")
+    control = RecordingControl()
+    cogni = Cogni.load(
+        context=ResourceContext(tenant_id="acme", principal_id="alice"),
+        storage_runtime=StorageRuntime.from_config(
+            StorageConfig.built_in(root=tmp_path / "storage")
+        ),
+        catalog_path=tmp_path / "catalog.sqlite3",
+        control=control,
+    )
+
+    result = cogni.assets.add(
+        source,
+        bundle="legal",
+        structure="preserve",
+        recursive=True,
+    )
+
+    assert isinstance(result, SourceAssetBatchResult)
+    assert result.created_count == 2
+    assert {item.bundle_path for item in result.items} == {
+        "legal",
+        "legal/india",
+    }
+    assert len({item.run_id for item in control.contexts}) == 1
+    assert len({item.correlation_id for item in control.contexts}) == 1

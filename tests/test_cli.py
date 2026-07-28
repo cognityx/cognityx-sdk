@@ -124,3 +124,36 @@ def test_describe_scope_validation_and_confirmation_output(
     )
     assert code == 2
     assert "KEY=VALUE" in error
+
+
+def test_assets_add_directory_emits_canonical_batch_json(
+    tmp_path: Path, capsys,
+) -> None:
+    root, catalog = tmp_path / "storage", tmp_path / "catalog.sqlite3"
+    source = tmp_path / "contracts"
+    (source / "india").mkdir(parents=True)
+    (source / "policy.txt").write_bytes(b"policy")
+    (source / "india/agreement.txt").write_bytes(b"agreement")
+
+    code, payload, error = _run(
+        capsys,
+        "assets",
+        "add",
+        str(source),
+        "--bundle",
+        "legal",
+        "--structure",
+        "flat",
+        "--no-recursive",
+        *_common(root, catalog),
+    )
+
+    assert code == 0
+    assert error == ""
+    assert payload["root_bundle_path"] == "legal"
+    assert payload["structure"] == "flat"
+    assert payload["recursive"] is False
+    assert payload["files_discovered"] == 1
+    assert payload["items"][0]["relative_path"] == "policy.txt"
+    assert payload["items"][0]["asset_id"].startswith("src-")
+    assert str(source) not in json.dumps(payload)

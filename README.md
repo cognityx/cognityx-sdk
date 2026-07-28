@@ -10,6 +10,11 @@ from cognityx import Cogni
 
 cogni = Cogni.load()
 created = cogni.assets.add("paper.pdf", bundle="phd/rag")
+batch = cogni.assets.add(
+    "/data/contracts",
+    bundle="legal",
+    structure="preserve",
+)
 deleted = cogni.assets.delete(created.asset_id, reason="superseded")
 plan = cogni.cleanup.plan_blobs(older_than=timedelta(days=7))
 ```
@@ -22,6 +27,8 @@ The same lifecycle is available through the unified CLI:
 
 ```bash
 cogni assets add paper.pdf --bundle phd/rag
+cogni assets add /data/contracts --bundle legal
+cogni assets add /data/contracts --bundle legal --structure flat
 cogni assets delete src-... --yes
 cogni assets deleted
 cogni cleanup blobs --dry-run
@@ -30,6 +37,10 @@ cogni cleanup blobs --older-than 7d --yes
 
 Asset deletion is logical and auditable. Blob cleanup is a separate,
 dry-run-first and reference-safe operation.
+
+Folder registration is synchronous in Job 5A. `preserve` mirrors relative
+folders as DocBundles, while `flat` places every file in one DocBundle.
+Background execution for large trees will be added separately.
 
 ## Contributing
 

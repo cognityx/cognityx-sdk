@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, BinaryIO
 
 from cognityx_ingest.models import (
     SourceAsset,
+    SourceAssetBatchResult,
     SourceAssetDeletionResult,
     SourceAssetLocation,
     SourceAssetRegistrationResult,
@@ -27,9 +28,16 @@ class Assets:
         path: str | Path,
         *,
         bundle: str | None = None,
-    ) -> SourceAssetRegistrationResult:
-        return self._owner.source_asset_registry.register_asset(
-            self._owner.new_execution(), path, bundle=bundle
+        structure: str = "preserve",
+        recursive: bool = True,
+    ) -> SourceAssetRegistrationResult | SourceAssetBatchResult:
+        execution = self._owner.new_execution()
+        return self._owner.source_asset_registry.register_path(
+            execution,
+            path,
+            bundle=bundle,
+            structure=structure,
+            recursive=recursive,
         )
 
     def list(self, *, bundle: str | None = None) -> tuple[SourceAsset, ...]:
