@@ -1,5 +1,7 @@
 # Cognityx Python SDK
 
+[![CI](https://github.com/cognityx/cognityx-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/cognityx/cognityx-sdk/actions/workflows/ci.yml)
+
 The primary application-facing Python SDK for Cognityx.
 
 ```python
