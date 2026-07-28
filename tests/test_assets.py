@@ -3,7 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from cognityx import Cogni
-from cognityx_ingest import SourceAsset, SourceAssetRegistrationResult
+from cognityx_ingest import (
+    SourceAsset,
+    SourceAssetDeletionResult,
+    SourceAssetRegistrationResult,
+)
 from cognityx_resource import ResourceContext
 from cognityx_storage import StorageConfig, StorageRuntime
 
@@ -54,3 +58,31 @@ def test_assets_facade_delegates_and_creates_fresh_executions(tmp_path: Path) ->
     # facade action starts with a fresh execution identity.
     assert len({item.run_id for item in control.contexts}) >= 4
     assert len({item.correlation_id for item in control.contexts}) >= 4
+
+
+def test_assets_lifecycle_returns_canonical_models(tmp_path: Path) -> None:
+    source = tmp_path / "asset.txt"
+    source.write_bytes(b"asset")
+    cogni = Cogni.load(
+        context=ResourceContext(tenant_id="acme"),
+        storage_runtime=StorageRuntime.from_config(
+            StorageConfig.built_in(root=tmp_path / "storage")
+        ),
+        catalog_path=tmp_path / "catalog.sqlite3",
+    )
+    created = cogni.assets.add(source)
+
+    deleted = cogni.assets.delete(created.asset_id, reason="superseded")
+
+    assert isinstance(deleted, SourceAssetDeletionResult)
+    assert deleted.status == "deleted"
+    assert cogni.assets.list_deleted()[0].asset_id == created.asset_id
+    for operation in (
+        lambda: cogni.assets.get(created.asset_id),
+        lambda: cogni.assets.open(created.asset_id),
+        lambda: cogni.assets.locate(created.asset_id),
+    ):
+        import pytest
+
+        with pytest.raises(KeyError):
+            operation()

@@ -36,6 +36,26 @@ def test_load_keeps_context_and_runtime_and_defers_registry(tmp_path: Path) -> N
     assert (tmp_path / "catalog.sqlite3").exists()
 
 
+def test_cleanup_is_lazy_and_shares_registry_runtime_and_control(
+    tmp_path: Path,
+) -> None:
+    runtime = _runtime(tmp_path / "storage")
+    cogni = Cogni.load(
+        context=ResourceContext(tenant_id="acme"),
+        storage_runtime=runtime,
+        catalog_path=tmp_path / "catalog.sqlite3",
+    )
+
+    assert cogni._registry is None
+    cleanup = cogni.cleanup
+    assert cogni._registry is None
+    service = cogni.source_asset_cleanup_service
+
+    assert service.registry is cogni.source_asset_registry
+    assert service.storage_runtime is runtime
+    assert cleanup is cogni.cleanup
+
+
 def test_context_and_storage_conflicts_are_rejected(tmp_path: Path) -> None:
     context = ResourceContext(tenant_id="acme")
     runtime = _runtime(tmp_path)
