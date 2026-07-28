@@ -8,3 +8,4 @@ nav:
   - Concepts: concepts.md
   - Architecture: architecture.md
   - API: api.md
+  - CLI: cli.md
