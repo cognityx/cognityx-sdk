@@ -28,6 +28,27 @@ deleted = cogni.assets.delete(asset.asset_id, reason="superseded")
 deleted_assets = cogni.assets.list_deleted()
 ```
 
+Add a complete directory with one batch `ExecutionContext`:
+
+```python
+result = cogni.assets.add(
+    "/data/contracts",
+    bundle="legal",
+    structure="preserve",
+)
+
+print(result.batch_id)
+print(result.created_count, result.failed_count)
+for item in result.items:
+    print(item.relative_path, item.bundle_path, item.status)
+```
+
+For directories, `preserve` recreates relative folders as DocBundles and
+`flat` places all files in the root DocBundle. Set `recursive=False` to use
+only direct child files. A file continues to return
+`SourceAssetRegistrationResult`; a directory returns
+`SourceAssetBatchResult`.
+
 ## DocBundles
 
 ```python

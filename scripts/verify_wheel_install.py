@@ -15,7 +15,7 @@ VERSION = "0.2.0"
 EXPECTED = {
     "cognityx-resource": "79f89a965f46300be6a892d4371d44e6c288fd0c",
     "cognityx-storage": "0d159136ebac6ce5362a5092ea4d6d2f181e9c89",
-    "cognityx-ingest": "8b95584b07b2b2ac3cb3e9f0f1566987b794c2ee",
+    "cognityx-ingest": "1be62570e971e4a471ab2bbb1d9a1f52edc9193c",
     "cognityx-jobs": "bfd10769703dfca97e6a70b0d242c5ccd961d702",
 }
 
@@ -116,6 +116,27 @@ def main() -> int:
             raise RuntimeError("Plain describe unexpectedly initialized the catalog.")
         created = _json([str(cogni), "assets", "add", str(source), *common])
         asset_id = created["asset_id"]
+        folder = root / "contracts"
+        (folder / "india").mkdir(parents=True)
+        (folder / "policy.txt").write_bytes(b"policy")
+        (folder / "india" / "agreement.txt").write_bytes(b"agreement")
+        batch = _json(
+            [
+                str(cogni),
+                "assets",
+                "add",
+                str(folder),
+                "--bundle",
+                "legal",
+                "--structure",
+                "preserve",
+                *common,
+            ]
+        )
+        if batch["created_count"] != 2 or {
+            item["bundle_path"] for item in batch["items"]
+        } != {"legal", "legal/india"}:
+            raise RuntimeError(f"Folder registration mismatch: {batch}")
         deleted = _json([str(cogni), "assets", "delete", asset_id, "--yes", *common])
         if deleted["status"] != "deleted":
             raise RuntimeError(f"Unexpected deletion result: {deleted}")

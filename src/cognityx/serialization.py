@@ -8,6 +8,7 @@ from cognityx_ingest import (
     DocBundle,
     DocBundleDeletionResult,
     SourceAsset,
+    SourceAssetBatchResult,
     SourceAssetDeletionResult,
     SourceAssetLocation,
     SourceAssetRegistrationResult,
@@ -42,6 +43,35 @@ def registration(item: SourceAssetRegistrationResult) -> dict[str, Any]:
         "sha256": item.sha256,
         "size_bytes": item.size_bytes,
         "status": item.status,
+    }
+
+
+def batch_registration(item: SourceAssetBatchResult) -> dict[str, Any]:
+    return {
+        "batch_id": item.batch_id,
+        "context_id": item.context_id,
+        "root_bundle_id": item.root_bundle_id,
+        "root_bundle_path": item.root_bundle_path,
+        "structure": item.structure,
+        "recursive": item.recursive,
+        "files_discovered": item.files_discovered,
+        "files_processed": item.files_processed,
+        "created_count": item.created_count,
+        "restored_count": item.restored_count,
+        "already_registered_count": item.already_registered_count,
+        "failed_count": item.failed_count,
+        "skipped_count": item.skipped_count,
+        "items": [
+            {
+                "relative_path": selected.relative_path,
+                "bundle_path": selected.bundle_path,
+                "asset_id": selected.asset_id,
+                "status": selected.status,
+                "error_category": selected.error_category,
+                "error_message": selected.error_message,
+            }
+            for selected in item.items
+        ],
     }
 
 
