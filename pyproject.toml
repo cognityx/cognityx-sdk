@@ -30,6 +30,9 @@ override-dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "mkdocs-material>=9"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/cognityx"]
 
