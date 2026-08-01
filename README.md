@@ -2,47 +2,37 @@
 
 [![CI](https://github.com/cognityx/cognityx-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/cognityx/cognityx-sdk/actions/workflows/ci.yml)
 
-The primary application-facing Python SDK for Cognityx.
+`cogni` is the primary command for working with Cognityx. It lets a user
+organize original files, turn PDFs into structured documents, monitor the work,
+and inspect the result without choosing physical storage paths.
 
-```python
-from datetime import timedelta
-from cognityx import Cogni
-
-cogni = Cogni.load()
-created = cogni.assets.add("paper.pdf", bundle="phd/rag")
-batch = cogni.assets.add(
-    "/data/contracts",
-    bundle="legal",
-    structure="preserve",
-)
-deleted = cogni.assets.delete(created.asset_id, reason="superseded")
-plan = cogni.cleanup.plan_blobs(older_than=timedelta(days=7))
+```text
+user or application
+        ↓
+       cogni
+        ↓
+Resource · Ingest · Storage · Jobs
+        ↓
+     DataForge
 ```
-
-`cognityx` is a thin composition layer over the independently testable
-`cognityx-resource`, `cognityx-storage`, and `cognityx-ingest` repositories. It
-does not replace their domain models or persistence behavior.
-
-The same lifecycle is available through the unified CLI:
 
 ```bash
-cogni assets add paper.pdf --bundle phd/rag
-cogni assets add /data/contracts --bundle legal
-cogni assets add /data/contracts --bundle legal --structure flat
-cogni assets delete src-... --yes
-cogni assets deleted
-cogni cleanup blobs --dry-run
-cogni cleanup blobs --older-than 7d --yes
+cogni assets add paper.pdf --bundle research
+cogni ingest paper.pdf
+cogni ingest --asset src-...
+cogni ingest --bundle-id bun-...
+cogni jobs status <job-id>
+cogni documents show <document-id>
 ```
 
-Asset deletion is logical and auditable. Blob cleanup is a separate,
-dry-run-first and reference-safe operation.
+The SDK is a thin composition layer. Ingest still owns document processing,
+Storage owns bytes and safe cleanup, Resource owns execution context, and Jobs
+owns durable status and ordered events.
 
-Folder registration is synchronous in Job 5A. `preserve` mirrors relative
-folders as DocBundles, while `flat` places every file in one DocBundle.
-Background execution for large trees will be added separately.
+See the [documentation](docs/index.md) for the complete flow, deletion rules,
+compatibility notes, and future roadmap.
 
-## Contributing
+## Development
 
 ```bash
 uv sync --extra dev
@@ -51,6 +41,3 @@ uv run mkdocs build --strict
 uv build
 uv run python scripts/verify_wheel_install.py
 ```
-
-GitHub CI runs these same commands, automatically collects every test below
-`tests/`, and verifies the independently installable wheel.

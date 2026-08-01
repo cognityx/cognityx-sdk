@@ -10,7 +10,7 @@ cogni = Cogni.load()
 
 Advanced callers may provide `context`, `context_file`, `context_overrides`,
 `cwd`, `user_context_file`, `storage_runtime`, `storage_config`,
-`catalog_path`, and an Ingest `control` client. Conflicting context or Storage
+`catalog_path`, `jobs_database`, and an Ingest `control` client. Conflicting context or Storage
 arguments are rejected.
 
 ## Assets
@@ -62,6 +62,21 @@ deleted = cogni.doc_bundles.delete(
 )
 deleted_bundles = cogni.doc_bundles.list_deleted()
 ```
+
+## Ingest
+
+```python
+path_run = cogni.ingest_path("report.pdf")
+asset_run = cogni.ingest_asset("src-...")
+bundle_run = cogni.ingest_bundle("bun-...")
+
+print(path_run.run_id, path_run.job_id)
+for result in path_run.results:
+    print(result.document.document_id, len(result.evidence))
+```
+
+Use `cogni.ingest_manager` for job, run, document, and generated-artifact
+inspection. This is the same manager used by the CLI.
 
 ## Blob cleanup
 

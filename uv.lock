@@ -4,10 +4,10 @@ requires-python = ">=3.12"
 
 [manifest]
 overrides = [
-    { name = "cognityx-ingest", git = "https://github.com/cognityx/cognityx-ingest.git?rev=1be62570e971e4a471ab2bbb1d9a1f52edc9193c" },
-    { name = "cognityx-jobs", git = "https://github.com/cognityx/cognityx-jobs.git?rev=bfd10769703dfca97e6a70b0d242c5ccd961d702" },
+    { name = "cognityx-ingest", git = "https://github.com/cognityx/cognityx-ingest.git?rev=07f5ba96d68eab1e1914b0d0a4bc7a17183ac469" },
+    { name = "cognityx-jobs", git = "https://github.com/cognityx/cognityx-jobs.git?rev=e4312fd461df97ffcefc54352b9b76f1dd6e6860" },
     { name = "cognityx-resource", git = "https://github.com/cognityx/cognityx-resource.git?rev=79f89a965f46300be6a892d4371d44e6c288fd0c" },
-    { name = "cognityx-storage", git = "https://github.com/cognityx/cognityx-storage.git?rev=0d159136ebac6ce5362a5092ea4d6d2f181e9c89" },
+    { name = "cognityx-storage", git = "https://github.com/cognityx/cognityx-storage.git?rev=0e73a286ff3c070f5e3fb30df7f00eab08b5c02c" },
 ]
 
 [[package]]
@@ -133,10 +133,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cognityx-ingest", git = "https://github.com/cognityx/cognityx-ingest.git?rev=1be62570e971e4a471ab2bbb1d9a1f52edc9193c" },
-    { name = "cognityx-jobs", git = "https://github.com/cognityx/cognityx-jobs.git?rev=bfd10769703dfca97e6a70b0d242c5ccd961d702" },
+    { name = "cognityx-ingest", git = "https://github.com/cognityx/cognityx-ingest.git?rev=07f5ba96d68eab1e1914b0d0a4bc7a17183ac469" },
+    { name = "cognityx-jobs", git = "https://github.com/cognityx/cognityx-jobs.git?rev=e4312fd461df97ffcefc54352b9b76f1dd6e6860" },
     { name = "cognityx-resource", git = "https://github.com/cognityx/cognityx-resource.git?rev=79f89a965f46300be6a892d4371d44e6c288fd0c" },
-    { name = "cognityx-storage", git = "https://github.com/cognityx/cognityx-storage.git?rev=0d159136ebac6ce5362a5092ea4d6d2f181e9c89" },
+    { name = "cognityx-storage", git = "https://github.com/cognityx/cognityx-storage.git?rev=0e73a286ff3c070f5e3fb30df7f00eab08b5c02c" },
     { name = "mkdocs-material", marker = "extra == 'dev'", specifier = ">=9" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
 ]
@@ -145,7 +145,7 @@ provides-extras = ["dev"]
 [[package]]
 name = "cognityx-ingest"
 version = "0.1.0"
-source = { git = "https://github.com/cognityx/cognityx-ingest.git?rev=1be62570e971e4a471ab2bbb1d9a1f52edc9193c#1be62570e971e4a471ab2bbb1d9a1f52edc9193c" }
+source = { git = "https://github.com/cognityx/cognityx-ingest.git?rev=07f5ba96d68eab1e1914b0d0a4bc7a17183ac469#07f5ba96d68eab1e1914b0d0a4bc7a17183ac469" }
 dependencies = [
     { name = "cognityx-jobs" },
     { name = "cognityx-resource" },
@@ -156,7 +156,7 @@ dependencies = [
 [[package]]
 name = "cognityx-jobs"
 version = "0.1.0"
-source = { git = "https://github.com/cognityx/cognityx-jobs.git?rev=bfd10769703dfca97e6a70b0d242c5ccd961d702#bfd10769703dfca97e6a70b0d242c5ccd961d702" }
+source = { git = "https://github.com/cognityx/cognityx-jobs.git?rev=e4312fd461df97ffcefc54352b9b76f1dd6e6860#e4312fd461df97ffcefc54352b9b76f1dd6e6860" }
 
 [[package]]
 name = "cognityx-resource"
@@ -166,7 +166,7 @@ source = { git = "https://github.com/cognityx/cognityx-resource.git?rev=79f89a96
 [[package]]
 name = "cognityx-storage"
 version = "0.1.0"
-source = { git = "https://github.com/cognityx/cognityx-storage.git?rev=0d159136ebac6ce5362a5092ea4d6d2f181e9c89#0d159136ebac6ce5362a5092ea4d6d2f181e9c89" }
+source = { git = "https://github.com/cognityx/cognityx-storage.git?rev=0e73a286ff3c070f5e3fb30df7f00eab08b5c02c#0e73a286ff3c070f5e3fb30df7f00eab08b5c02c" }
 dependencies = [
     { name = "cognityx-resource" },
 ]

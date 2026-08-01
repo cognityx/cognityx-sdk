@@ -1,18 +1,52 @@
 # Cognityx Python SDK
 
-The SDK provides the application-facing `Cogni` facade while preserving the
-independent component boundaries underneath it.
+The SDK provides one application-facing command, `cogni`, and one Python entry
+point, `Cogni`. A user can give it a PDF and receive stable identifiers for the
+original file, the work performed, and the structured document produced.
 
-```python
-from datetime import timedelta
-from cognityx import Cogni
+## Where It Fits
 
-cogni = Cogni.load()
-created = cogni.assets.add("paper.pdf", bundle="phd/rag")
-deleted = cogni.assets.delete(created.asset_id, reason="superseded")
-plan = cogni.cleanup.plan_blobs(older_than=timedelta(days=7))
+```text
+local files or registered assets
+              ↓
+            cogni
+              ↓
+Resource context + Ingest + Storage + Jobs
+              ↓
+structured documents and page evidence
+              ↓
+           DataForge
 ```
 
-The SDK exposes SourceAsset and DocBundle lifecycle operations plus
-dry-run-first Blob cleanup. The `cogni` CLI delegates through this same
-Python facade.
+`Cogni` does not replace the component services. It loads and connects their
+existing APIs so applications do not need to assemble them manually.
+
+## Start Here
+
+```bash
+cogni assets add report.pdf --bundle research/reports
+cogni ingest report.pdf
+cogni jobs status <job-id>
+cogni documents show <document-id>
+```
+
+No storage path is required. The configured Storage Runtime chooses the
+physical provider and logical roles.
+
+- [Preferred CLI](cli.md)
+- [Python API](api.md)
+- [Architecture](architecture.md)
+- [Concepts](concepts.md)
+
+## Deletion In One Minute
+
+Deleting an asset or bundle removes the logical record first. Deleting a run or
+document removes only generated outputs. Raw bytes are physically removed only
+after Storage proves that no live SourceAsset references them.
+
+## Future Roadmap
+
+Planned work includes reference-only external URI ingestion, true distributed
+workers for large jobs, and an always-running Storage cleanup service. The
+future cleanup service will automate the current reference-safe process rather
+than bypass it.

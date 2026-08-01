@@ -7,6 +7,7 @@ from typing import Any
 from cognityx_ingest import (
     DocBundle,
     DocBundleDeletionResult,
+    IngestRunResult,
     SourceAsset,
     SourceAssetBatchResult,
     SourceAssetDeletionResult,
@@ -123,6 +124,27 @@ def bundle_deletion(item: DocBundleDeletionResult) -> dict[str, Any]:
         "deleted_bundle_count": item.deleted_bundle_count,
         "deleted_at": item.deleted_at,
         "status": item.status,
+    }
+
+
+def ingest_run(item: IngestRunResult) -> dict[str, Any]:
+    """Present a run without requiring users to understand storage internals."""
+    return {
+        "run_id": item.run_id,
+        "job_id": item.job_id,
+        "root_bundle_id": item.root_bundle_id,
+        "document_count": item.document_count,
+        "failed_count": item.failed_count,
+        "documents": [
+            {
+                "document_id": result.document.document_id,
+                "asset_id": result.document.source.source_id,
+                "page_count": len(result.evidence),
+                "artifacts": [artifact.uri for artifact in result.artifacts],
+            }
+            for result in item.results
+        ],
+        "failures": list(item.failures),
     }
 
 

@@ -11,9 +11,9 @@ requires-python = ">=3.12"
 license = { text = "Proprietary" }
 dependencies = [
   "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@79f89a965f46300be6a892d4371d44e6c288fd0c",
-  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@0d159136ebac6ce5362a5092ea4d6d2f181e9c89",
-  "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@1be62570e971e4a471ab2bbb1d9a1f52edc9193c",
-  "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@bfd10769703dfca97e6a70b0d242c5ccd961d702",
+  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@0e73a286ff3c070f5e3fb30df7f00eab08b5c02c",
+  "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@07f5ba96d68eab1e1914b0d0a4bc7a17183ac469",
+  "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@e4312fd461df97ffcefc54352b9b76f1dd6e6860",
 ]
 
 [project.scripts]
@@ -22,9 +22,9 @@ cogni = "cognityx.cli:main"
 [tool.uv]
 override-dependencies = [
   "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@79f89a965f46300be6a892d4371d44e6c288fd0c",
-  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@0d159136ebac6ce5362a5092ea4d6d2f181e9c89",
-  "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@1be62570e971e4a471ab2bbb1d9a1f52edc9193c",
-  "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@bfd10769703dfca97e6a70b0d242c5ccd961d702",
+  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@0e73a286ff3c070f5e3fb30df7f00eab08b5c02c",
+  "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@07f5ba96d68eab1e1914b0d0a4bc7a17183ac469",
+  "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@e4312fd461df97ffcefc54352b9b76f1dd6e6860",
 ]
 
 [project.optional-dependencies]

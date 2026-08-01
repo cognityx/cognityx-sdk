@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from datetime import timedelta
 import json
 from pathlib import Path
 import re
 import sys
+import time
 from typing import Any
+import warnings
 
 from cognityx_ingest.control import IngestAuthorizationError
 from cognityx_ingest.models import SourceAssetBatchResult
@@ -24,6 +27,7 @@ from cognityx.serialization import (
     doc_bundle,
     gc_plan,
     gc_result,
+    ingest_run,
     registration,
     source_asset,
 )
@@ -44,6 +48,7 @@ def _common_parser() -> argparse.ArgumentParser:
     storage.add_argument("--storage-config", type=Path)
     storage.add_argument("--storage-root", type=Path)
     parser.add_argument("--catalog-path", type=Path)
+    parser.add_argument("--jobs-database", type=Path)
     parser.add_argument("--debug", action="store_true")
     return parser
 
@@ -97,6 +102,46 @@ def _parser() -> argparse.ArgumentParser:
     delete_bundle.add_argument("--yes", action="store_true", help="Confirm logical deletion.")
     delete_bundle.add_argument("--reason")
     bundle_commands.add_parser("deleted", parents=[common])
+
+    ingest = commands.add_parser(
+        "ingest", parents=[common], help="Turn PDFs into DataForge-ready documents."
+    )
+    ingest_input = ingest.add_mutually_exclusive_group(required=True)
+    ingest_input.add_argument("path", nargs="?", type=Path)
+    ingest_input.add_argument("--asset", dest="asset_id")
+    ingest_input.add_argument("--bundle-id")
+    jobs = commands.add_parser("jobs", help="Inspect or cancel ingest work.")
+    job_commands = jobs.add_subparsers(dest="action", required=True)
+    job_commands.add_parser("list", parents=[common])
+    for name in ("status", "show", "events", "watch", "cancel"):
+        leaf = job_commands.add_parser(name, parents=[common])
+        leaf.add_argument("job_id")
+        if name in {"events", "watch"}:
+            leaf.add_argument("--after", type=int, default=0)
+
+    runs = commands.add_parser("runs", help="Inspect or remove generated ingest runs.")
+    run_commands = runs.add_subparsers(dest="action", required=True)
+    run_commands.add_parser("list", parents=[common])
+    for name in ("show", "delete"):
+        leaf = run_commands.add_parser(name, parents=[common])
+        leaf.add_argument("run_id")
+        if name == "delete":
+            leaf.add_argument("--yes", action="store_true")
+
+    documents = commands.add_parser("documents", help="Inspect or remove generated documents.")
+    document_commands = documents.add_subparsers(dest="action", required=True)
+    document_commands.add_parser("list", parents=[common])
+    for name in ("show", "delete"):
+        leaf = document_commands.add_parser(name, parents=[common])
+        leaf.add_argument("document_id")
+        if name == "delete":
+            leaf.add_argument("--yes", action="store_true")
+
+    artifacts = commands.add_parser("artifacts", help="Inspect generated document data.")
+    artifact_commands = artifacts.add_subparsers(dest="action", required=True)
+    read = artifact_commands.add_parser("read", parents=[common])
+    read.add_argument("document_id")
+    read.add_argument("name", choices=("document", "evidence", "manifest"))
 
     cleanup = commands.add_parser("cleanup", help="Plan or execute physical Blob cleanup.")
     cleanup_commands = cleanup.add_subparsers(dest="action", required=True)
@@ -153,6 +198,11 @@ def _load(args: argparse.Namespace) -> Cogni:
         overrides["scopes"] = scopes
     runtime = None
     if getattr(args, "storage_root", None) is not None:
+        warnings.warn(
+            "--storage-root is deprecated; configure StorageRuntime or use --storage-config.",
+            FutureWarning,
+            stacklevel=3,
+        )
         runtime = StorageRuntime.from_config(
             StorageConfig.built_in(root=args.storage_root)
         )
@@ -162,6 +212,7 @@ def _load(args: argparse.Namespace) -> Cogni:
         storage_runtime=runtime,
         storage_config=getattr(args, "storage_config", None),
         catalog_path=getattr(args, "catalog_path", None),
+        jobs_database=getattr(args, "jobs_database", None),
     )
 
 
@@ -213,6 +264,56 @@ def _execute(args: argparse.Namespace) -> Any:
                 )
             )
         return [doc_bundle(item) for item in cogni.doc_bundles.list_deleted()]
+    if args.group == "ingest":
+        if args.asset_id:
+            return ingest_run(cogni.ingest_asset(args.asset_id))
+        if args.bundle_id:
+            return ingest_run(cogni.ingest_bundle(args.bundle_id))
+        return ingest_run(cogni.ingest_path(args.path))
+    if args.group == "jobs":
+        owner_id = cogni.context.principal_id or "local"
+        execution = cogni.new_execution()
+        if args.action == "list":
+            return cogni.ingest_manager.list_jobs(execution, owner_id=owner_id)
+        if args.action in {"status", "show"}:
+            return cogni.ingest_manager.show_job(
+                execution, args.job_id, owner_id=owner_id
+            )
+        if args.action == "events":
+            return cogni.ingest_manager.job_events(
+                execution, args.job_id, owner_id=owner_id, after=args.after
+            )
+        if args.action == "watch":
+            _watch_job(cogni, args.job_id, owner_id=owner_id, after=args.after)
+            return None
+        return cogni.ingest_manager.request_cancel(
+            execution, args.job_id, owner_id=owner_id
+        )
+    if args.group == "runs":
+        execution = cogni.new_execution()
+        if args.action == "list":
+            return cogni.ingest_manager.list_runs(execution)
+        if args.action == "show":
+            return cogni.ingest_manager.show_run(execution, args.run_id)
+        if not args.yes:
+            raise _ConfirmationRequired("runs delete requires --yes; no deletion was performed.")
+        cogni.ingest_manager.delete_run(execution, args.run_id)
+        return {"deleted_run_id": args.run_id}
+    if args.group == "documents":
+        execution = cogni.new_execution()
+        if args.action == "list":
+            return cogni.ingest_manager.list_documents(execution)
+        if args.action == "show":
+            return cogni.ingest_manager.show_document(execution, args.document_id)
+        if not args.yes:
+            raise _ConfirmationRequired("documents delete requires --yes; no deletion was performed.")
+        cogni.ingest_manager.delete_document(execution, args.document_id)
+        return {"deleted_document_id": args.document_id}
+    if args.group == "artifacts":
+        payload = cogni.ingest_manager.read_artifact(
+            cogni.new_execution(), args.document_id, args.name
+        )
+        return _artifact(args.name, payload)
     if args.group == "cleanup":
         if not 1 <= args.batch_size <= 500:
             raise ValueError("--batch-size must be between 1 and 500.")
@@ -240,6 +341,35 @@ class _ConfirmationRequired(ValueError):
     pass
 
 
+def _watch_job(cogni: Cogni, job_id: str, *, owner_id: str, after: int) -> None:
+    terminal = {"completed", "failed", "cancelled", "interrupted"}
+    while True:
+        execution = cogni.new_execution()
+        events = cogni.ingest_manager.job_events(
+            execution, job_id, owner_id=owner_id, after=after
+        )
+        for event in events:
+            print(json.dumps(event, sort_keys=True), flush=True)
+            after = int(event["sequence"])
+        status = cogni.ingest_manager.show_job(
+            execution, job_id, owner_id=owner_id
+        )["job"]["state"]
+        if status in terminal:
+            return
+        time.sleep(0.25)
+
+
+def _artifact(name: str, payload: bytes) -> dict[str, Any]:
+    try:
+        return {"artifact": name, "encoding": "utf-8", "content": payload.decode("utf-8")}
+    except UnicodeDecodeError:
+        return {
+            "artifact": name,
+            "encoding": "base64",
+            "content": base64.b64encode(payload).decode("ascii"),
+        }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -262,5 +392,6 @@ def main(argv: list[str] | None = None) -> int:
             raise
         print(str(exc), file=sys.stderr)
         return 1
-    print(json.dumps(payload, indent=2, sort_keys=True))
+    if payload is not None:
+        print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
