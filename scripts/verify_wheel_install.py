@@ -15,7 +15,7 @@ VERSION = "0.2.0"
 EXPECTED = {
     "cognityx-resource": "79f89a965f46300be6a892d4371d44e6c288fd0c",
     "cognityx-storage": "0e73a286ff3c070f5e3fb30df7f00eab08b5c02c",
-    "cognityx-ingest": "07f5ba96d68eab1e1914b0d0a4bc7a17183ac469",
+    "cognityx-ingest": "84de6039cfb087a14db40a7b84f29eeba4557f75",
     "cognityx-jobs": "e4312fd461df97ffcefc54352b9b76f1dd6e6860",
 }
 

@@ -49,6 +49,23 @@ def _common_parser() -> argparse.ArgumentParser:
     storage.add_argument("--storage-root", type=Path)
     parser.add_argument("--catalog-path", type=Path)
     parser.add_argument("--jobs-database", type=Path)
+    parser.add_argument(
+        "--inference-config",
+        type=Path,
+        help="Advanced bounded-resolution configuration.",
+    )
+    parser.add_argument(
+        "--parser-policy",
+        choices=("fixed", "rule", "fallback", "compare", "agent"),
+        default="fixed",
+        help="Advanced extraction selection policy.",
+    )
+    parser.add_argument(
+        "--parser-backend",
+        action="append",
+        choices=("basic", "pymupdf", "docling"),
+        help="Approved parser backend, repeatable in fallback order.",
+    )
     parser.add_argument("--debug", action="store_true")
     return parser
 
@@ -61,7 +78,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="group", required=True)
 
-    assets = commands.add_parser("assets", help="Manage SourceAssets.")
+    assets = commands.add_parser(
+        "asset", aliases=("assets", "sources"), help="Manage SourceAssets."
+    )
     asset_commands = assets.add_subparsers(dest="action", required=True)
     add = asset_commands.add_parser("add", parents=[common])
     add.add_argument("path", type=Path)
@@ -89,7 +108,9 @@ def _parser() -> argparse.ArgumentParser:
     delete.add_argument("--reason")
     asset_commands.add_parser("deleted", parents=[common])
 
-    bundles = commands.add_parser("doc-bundles", help="Manage DocBundles.")
+    bundles = commands.add_parser(
+        "bundle", aliases=("doc-bundles", "bundles"), help="Manage DocBundles."
+    )
     bundle_commands = bundles.add_subparsers(dest="action", required=True)
     create = bundle_commands.add_parser("create", parents=[common])
     create.add_argument("path")
@@ -109,8 +130,11 @@ def _parser() -> argparse.ArgumentParser:
     ingest_input = ingest.add_mutually_exclusive_group(required=True)
     ingest_input.add_argument("path", nargs="?", type=Path)
     ingest_input.add_argument("--asset", dest="asset_id")
+    ingest_input.add_argument("--bundle", dest="bundle_path")
     ingest_input.add_argument("--bundle-id")
-    jobs = commands.add_parser("jobs", help="Inspect or cancel ingest work.")
+    jobs = commands.add_parser(
+        "job", aliases=("jobs",), help="Inspect or cancel ingest work."
+    )
     job_commands = jobs.add_subparsers(dest="action", required=True)
     job_commands.add_parser("list", parents=[common])
     for name in ("status", "show", "events", "watch", "cancel"):
@@ -119,7 +143,9 @@ def _parser() -> argparse.ArgumentParser:
         if name in {"events", "watch"}:
             leaf.add_argument("--after", type=int, default=0)
 
-    runs = commands.add_parser("runs", help="Inspect or remove generated ingest runs.")
+    runs = commands.add_parser(
+        "run", aliases=("runs",), help="Inspect or remove generated ingest runs."
+    )
     run_commands = runs.add_subparsers(dest="action", required=True)
     run_commands.add_parser("list", parents=[common])
     for name in ("show", "delete"):
@@ -128,7 +154,9 @@ def _parser() -> argparse.ArgumentParser:
         if name == "delete":
             leaf.add_argument("--yes", action="store_true")
 
-    documents = commands.add_parser("documents", help="Inspect or remove generated documents.")
+    documents = commands.add_parser(
+        "document", aliases=("documents",), help="Inspect or remove generated documents."
+    )
     document_commands = documents.add_subparsers(dest="action", required=True)
     document_commands.add_parser("list", parents=[common])
     for name in ("show", "delete"):
@@ -137,11 +165,15 @@ def _parser() -> argparse.ArgumentParser:
         if name == "delete":
             leaf.add_argument("--yes", action="store_true")
 
-    artifacts = commands.add_parser("artifacts", help="Inspect generated document data.")
+    artifacts = commands.add_parser(
+        "artifact", aliases=("artifacts",), help="Inspect generated document data."
+    )
     artifact_commands = artifacts.add_subparsers(dest="action", required=True)
     read = artifact_commands.add_parser("read", parents=[common])
     read.add_argument("document_id")
-    read.add_argument("name", choices=("document", "evidence", "manifest"))
+    read.add_argument(
+        "name", choices=("document", "evidence", "provenance", "manifest")
+    )
 
     cleanup = commands.add_parser("cleanup", help="Plan or execute physical Blob cleanup.")
     cleanup_commands = cleanup.add_subparsers(dest="action", required=True)
@@ -213,12 +245,32 @@ def _load(args: argparse.Namespace) -> Cogni:
         storage_config=getattr(args, "storage_config", None),
         catalog_path=getattr(args, "catalog_path", None),
         jobs_database=getattr(args, "jobs_database", None),
+        inference_config=getattr(args, "inference_config", None),
+        parser_policy=getattr(args, "parser_policy", "fixed"),
+        parser_backends=tuple(getattr(args, "parser_backend", None) or ("basic",)),
     )
 
 
 def _execute(args: argparse.Namespace) -> Any:
+    compatibility = {
+        "assets": "asset",
+        "sources": "asset",
+        "doc-bundles": "bundle",
+        "bundles": "bundle",
+        "jobs": "job",
+        "runs": "run",
+        "documents": "document",
+        "artifacts": "artifact",
+    }
+    if args.group in compatibility:
+        warnings.warn(
+            f"'{args.group}' is deprecated; use singular '{compatibility[args.group]}'.",
+            FutureWarning,
+            stacklevel=3,
+        )
+        args.group = compatibility[args.group]
     cogni = _load(args)
-    if args.group == "assets":
+    if args.group == "asset":
         if args.action == "add":
             result = cogni.assets.add(
                 args.path,
@@ -248,7 +300,7 @@ def _execute(args: argparse.Namespace) -> Any:
                 raise _ConfirmationRequired("assets delete requires --yes; no deletion was performed.")
             return asset_deletion(cogni.assets.delete(args.asset_id, reason=args.reason))
         return [source_asset(item) for item in cogni.assets.list_deleted()]
-    if args.group == "doc-bundles":
+    if args.group == "bundle":
         if args.action == "create":
             return doc_bundle(cogni.doc_bundles.create(args.path))
         if args.action == "list":
@@ -267,10 +319,17 @@ def _execute(args: argparse.Namespace) -> Any:
     if args.group == "ingest":
         if args.asset_id:
             return ingest_run(cogni.ingest_asset(args.asset_id))
+        if args.bundle_path:
+            return ingest_run(cogni.ingest_bundle_path(args.bundle_path))
         if args.bundle_id:
+            warnings.warn(
+                "--bundle-id is a compatibility form; prefer --bundle with the full path.",
+                FutureWarning,
+                stacklevel=3,
+            )
             return ingest_run(cogni.ingest_bundle(args.bundle_id))
         return ingest_run(cogni.ingest_path(args.path))
-    if args.group == "jobs":
+    if args.group == "job":
         owner_id = cogni.context.principal_id or "local"
         execution = cogni.new_execution()
         if args.action == "list":
@@ -289,7 +348,7 @@ def _execute(args: argparse.Namespace) -> Any:
         return cogni.ingest_manager.request_cancel(
             execution, args.job_id, owner_id=owner_id
         )
-    if args.group == "runs":
+    if args.group == "run":
         execution = cogni.new_execution()
         if args.action == "list":
             return cogni.ingest_manager.list_runs(execution)
@@ -299,7 +358,7 @@ def _execute(args: argparse.Namespace) -> Any:
             raise _ConfirmationRequired("runs delete requires --yes; no deletion was performed.")
         cogni.ingest_manager.delete_run(execution, args.run_id)
         return {"deleted_run_id": args.run_id}
-    if args.group == "documents":
+    if args.group == "document":
         execution = cogni.new_execution()
         if args.action == "list":
             return cogni.ingest_manager.list_documents(execution)
@@ -309,7 +368,7 @@ def _execute(args: argparse.Namespace) -> Any:
             raise _ConfirmationRequired("documents delete requires --yes; no deletion was performed.")
         cogni.ingest_manager.delete_document(execution, args.document_id)
         return {"deleted_document_id": args.document_id}
-    if args.group == "artifacts":
+    if args.group == "artifact":
         payload = cogni.ingest_manager.read_artifact(
             cogni.new_execution(), args.document_id, args.name
         )

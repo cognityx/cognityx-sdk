@@ -6,15 +6,15 @@ A SourceAsset is a recorded original file. A DocBundle is a named collection,
 similar to a folder.
 
 ```bash
-cogni doc-bundles create research/reports
-cogni doc-bundles list
-cogni doc-bundles locate bun-...
+cogni bundle create research/reports
+cogni bundle list
+cogni bundle locate bun-...
 
-cogni assets add report.pdf --bundle research/reports
-cogni assets add ./incoming --bundle research --structure preserve
-cogni assets list --bundle research/reports
-cogni assets show src-...
-cogni assets locate src-...
+cogni asset add report.pdf --bundle research/reports
+cogni asset add ./incoming --bundle research --structure preserve
+cogni asset list --bundle research/reports
+cogni asset show src-...
+cogni asset locate src-...
 ```
 
 ## Ingest PDFs
@@ -25,7 +25,7 @@ The same command accepts a path, an existing asset ID, or a complete bundle ID:
 cogni ingest report.pdf
 cogni ingest ./reports
 cogni ingest --asset src-...
-cogni ingest --bundle-id bun-...
+cogni ingest --bundle research/reports
 ```
 
 The response includes the run ID, job ID, document IDs, asset IDs, page counts,
@@ -35,11 +35,11 @@ metadata files.
 ## Monitor Work
 
 ```bash
-cogni jobs list
-cogni jobs status <job-id>
-cogni jobs events <job-id>
-cogni jobs watch <job-id>
-cogni jobs cancel <job-id>
+cogni job list
+cogni job status <job-id>
+cogni job events <job-id>
+cogni job watch <job-id>
+cogni job cancel <job-id>
 ```
 
 `events` replays ordered progress. `watch` reconnects at an event sequence and
@@ -49,23 +49,24 @@ PDF parse remains synchronous.
 ## Inspect Generated Results
 
 ```bash
-cogni runs list
-cogni runs show <run-id>
-cogni documents list
-cogni documents show <document-id>
-cogni artifacts read <document-id> evidence
+cogni run list
+cogni run show <run-id>
+cogni document list
+cogni document show <document-id>
+cogni artifact read <document-id> evidence
+cogni artifact read <document-id> provenance
 ```
 
 ## Delete Safely
 
 ```bash
 # Logical deletion; raw bytes are retained while referenced.
-cogni assets delete src-... --yes --reason "superseded"
-cogni doc-bundles delete bun-... --recursive --yes
+cogni asset delete src-... --yes --reason "superseded"
+cogni bundle delete bun-... --recursive --yes
 
 # Generated output deletion; SourceAsset bytes and job history remain.
-cogni runs delete <run-id> --yes
-cogni documents delete <document-id> --yes
+cogni run delete <run-id> --yes
+cogni document delete <document-id> --yes
 
 # Storage-owned physical cleanup. Planning is the default.
 cogni cleanup blobs --older-than 7d
@@ -90,6 +91,22 @@ An operator may select a configuration explicitly:
 cogni ingest report.pdf --storage-config .cognityx/storage.toml
 ```
 
+Rich extraction and bounded inference are advanced operator controls:
+
+```bash
+cogni ingest report.pdf \
+  --parser-policy fallback \
+  --parser-backend docling \
+  --parser-backend pymupdf \
+  --parser-backend basic \
+  --inference-config .cognityx/ingest-inference.toml
+```
+
+The Inference file contains an operator-approved target list. For local work,
+its named server profile starts the worker and loads the configured model.
+Only unresolved provenance tasks are sent, calls and tokens are bounded, and
+invented anchors are rejected. DataForge users do not need these options.
+
 Successful stdout is JSON. Diagnostics go to stderr. Exit codes are `0` for
 success, `1` for operational failure, `2` for arguments or missing
 confirmation, `3` for inaccessible resources, and `4` for authorization
@@ -97,10 +114,11 @@ rejection.
 
 ## Deprecated / Compatibility
 
-The component-level `cognityx-ingest` command, `sources` and `bundles` aliases,
-`jobs show`, `--bundle` for bundle ingestion, and `--storage-root` remain
-temporarily available. New scripts should use `cogni`, `assets`,
-`doc-bundles`, `jobs status`, `--bundle-id`, and normal Storage Runtime loading.
+The component-level `cognityx-ingest` command; plural `assets`, `doc-bundles`,
+`jobs`, `runs`, `documents`, and `artifacts`; historical `sources` and
+`bundles`; `jobs show`; ID-only `--bundle-id`; and `--storage-root` remain
+temporarily available. New scripts use singular resource commands, bundle
+paths, and normal Storage Runtime loading.
 
-The old generated `source.pdf` artifact is not available. Use `cogni assets
-show` or `cogni assets locate` for the original SourceAsset.
+The old generated `source.pdf` artifact is not available. Use `cogni asset
+show` or `cogni asset locate` for the original SourceAsset.

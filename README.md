@@ -11,23 +11,27 @@ user or application
         ↓
        cogni
         ↓
-Resource · Ingest · Storage · Jobs
+Resource · Ingest · Storage · Jobs · optional Inference
         ↓
      DataForge
 ```
 
 ```bash
-cogni assets add paper.pdf --bundle research
+cogni asset add paper.pdf --bundle research
 cogni ingest paper.pdf
 cogni ingest --asset src-...
-cogni ingest --bundle-id bun-...
-cogni jobs status <job-id>
-cogni documents show <document-id>
+cogni ingest --bundle research
+cogni job status <job-id>
+cogni document show <document-id>
 ```
 
 The SDK is a thin composition layer. Ingest still owns document processing,
 Storage owns bytes and safe cleanup, Resource owns execution context, and Jobs
 owns durable status and ordered events.
+
+Optional rich parsing and ambiguity resolution use the approved
+`cognityx-inference` client. A model may propose a relationship, but Ingest
+accepts it only after deterministic source-anchor validation.
 
 See the [documentation](docs/index.md) for the complete flow, deletion rules,
 compatibility notes, and future roadmap.
