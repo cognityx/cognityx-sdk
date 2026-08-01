@@ -5,14 +5,15 @@ Application
     ↓
 Cogni
     ↓
-cognityx-resource · cognityx-storage · cognityx-ingest
+cognityx-resource · cognityx-storage · cognityx-ingest · cognityx-jobs
 ```
 
 `Cogni.load()` resolves one stable `ResourceContext` and one
 `StorageRuntime`. The SourceAsset registry is initialized only when
 `cogni.assets`, `cogni.doc_bundles`, or the advanced
-`cogni.source_asset_registry` property is first used. Assets, DocBundles, and
-cleanup share the same registry, Storage runtime, and Control client.
+`cogni.source_asset_registry` property is first used. Ingest, Assets,
+DocBundles, Jobs, generated-result management, and cleanup share the same
+Context, Storage runtime, and Control client.
 
 Every action creates a new `ExecutionContext` from the stable Context. The
 catalog path, capability checks, legacy selection, Blob ownership, and
@@ -25,7 +26,7 @@ cogni CLI
     ↓
 Cogni
     ↓
-Assets · DocBundles · Cleanup
+Assets · DocBundles · Ingest · Jobs · Documents · Cleanup
     ↓
 Ingest and Storage component APIs
 ```

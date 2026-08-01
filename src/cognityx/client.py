@@ -7,8 +7,15 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from cognityx_ingest import SourceAssetCleanupService, SourceAssetRegistry
+from cognityx_ingest import (
+    IngestManager,
+    IngestRunResult,
+    IngestService,
+    SourceAssetCleanupService,
+    SourceAssetRegistry,
+)
 from cognityx_ingest.control import ControlClient
+from cognityx_jobs import JobRepository
 from cognityx_resource import ExecutionContext, ResourceContext, load_resource_context
 from cognityx_storage import StorageRuntime
 
@@ -26,17 +33,22 @@ class Cogni:
         context: ResourceContext,
         storage: StorageRuntime,
         catalog_path: str | Path | None = None,
+        jobs_database: str | Path | None = None,
         control: ControlClient | None = None,
     ) -> None:
         self._context = context
         self._storage = storage
         self._catalog_path = catalog_path
+        self._jobs_database = Path(jobs_database) if jobs_database else None
         self._control = control
         self._registry: SourceAssetRegistry | None = None
         self._assets: Assets | None = None
         self._doc_bundles: DocBundles | None = None
         self._cleanup_service: SourceAssetCleanupService | None = None
         self._cleanup: Cleanup | None = None
+        self._jobs: JobRepository | None = None
+        self._ingest_service: IngestService | None = None
+        self._ingest_manager: IngestManager | None = None
         self._lock = RLock()
 
     @classmethod
@@ -51,6 +63,7 @@ class Cogni:
         storage_runtime: StorageRuntime | None = None,
         storage_config: str | Path | None = None,
         catalog_path: str | Path | None = None,
+        jobs_database: str | Path | None = None,
         control: ControlClient | None = None,
     ) -> "Cogni":
         if context is not None and any(
@@ -79,6 +92,7 @@ class Cogni:
             context=selected_context,
             storage=selected_storage,
             catalog_path=catalog_path,
+            jobs_database=jobs_database,
             control=control,
         )
 
@@ -136,6 +150,65 @@ class Cogni:
                     control=self._control,
                 )
             return self._cleanup_service
+
+    @property
+    def job_repository(self) -> JobRepository:
+        with self._lock:
+            if self._jobs is None:
+                database = self._jobs_database or self._storage.for_role(
+                    "catalog"
+                ).native_path("ingest/jobs.sqlite3")
+                database.parent.mkdir(parents=True, exist_ok=True)
+                self._jobs = JobRepository(str(database))
+            return self._jobs
+
+    @property
+    def ingest_service(self) -> IngestService:
+        with self._lock:
+            if self._ingest_service is None:
+                self._ingest_service = IngestService(
+                    self._storage.for_role("artifact"),
+                    jobs=self.job_repository,
+                    registry=self.source_asset_registry,
+                    control=self._control,
+                )
+            return self._ingest_service
+
+    @property
+    def ingest_manager(self) -> IngestManager:
+        with self._lock:
+            if self._ingest_manager is None:
+                self._ingest_manager = IngestManager(
+                    self._storage.for_role("artifact"),
+                    self.job_repository,
+                    control=self._control,
+                )
+            return self._ingest_manager
+
+    def ingest_path(self, path: str | Path) -> IngestRunResult:
+        execution = self.new_execution()
+        return self.ingest_service.ingest_path(
+            path,
+            owner_id=execution.principal_id or "local",
+            context=execution,
+            registry=self.source_asset_registry,
+        )
+
+    def ingest_asset(self, asset_id: str) -> IngestRunResult:
+        execution = self.new_execution()
+        asset = self.source_asset_registry.show_asset(execution, asset_id)
+        return self.ingest_service.ingest_assets(
+            (asset.asset_id,),
+            self.source_asset_registry,
+            execution,
+            submitted_input={"type": "asset", "asset_id": asset.asset_id},
+            root_bundle_id=asset.bundle_id,
+        )
+
+    def ingest_bundle(self, bundle_id: str) -> IngestRunResult:
+        return self.ingest_service.ingest_bundle(
+            bundle_id, self.source_asset_registry, self.new_execution()
+        )
 
     def new_execution(self) -> ExecutionContext:
         return ExecutionContext.create(self._context)
