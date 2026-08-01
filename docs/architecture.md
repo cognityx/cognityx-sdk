@@ -6,12 +6,14 @@ Application
 Cogni
     ↓
 cognityx-resource · cognityx-storage · cognityx-ingest · cognityx-jobs
+                                      · optional cognityx-inference
 ```
 
 `Cogni.load()` resolves one stable `ResourceContext` and one
-`StorageRuntime`. The SourceAsset registry is initialized only when
-`cogni.assets`, `cogni.doc_bundles`, or the advanced
-`cogni.source_asset_registry` property is first used. Ingest, Assets,
+`StorageRuntime`. The SourceAsset registry is initialized only when the
+`cogni asset` or `cogni bundle` command, the Python `cogni.assets` or
+`cogni.doc_bundles` facade, or the advanced `cogni.source_asset_registry`
+property is first used. Ingest, Assets,
 DocBundles, Jobs, generated-result management, and cleanup share the same
 Context, Storage runtime, and Control client.
 
@@ -32,6 +34,12 @@ Ingest and Storage component APIs
 ```
 
 It does not create a separate persistence or cleanup orchestration path.
+
+When bounded resolution is configured, `Cogni` constructs the existing
+`CognityxInferenceClient`. A named local server profile starts the worker and
+loads its approved model. Provider/model capability checks occur before an
+external request. Ingest records the request identity and validates every
+proposed source anchor before publishing provenance.
 
 ## Diagnostics
 

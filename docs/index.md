@@ -11,7 +11,7 @@ local files or registered assets
               ↓
             cogni
               ↓
-Resource context + Ingest + Storage + Jobs
+Resource context + Ingest + Storage + Jobs + optional Inference
               ↓
 structured documents and page evidence
               ↓
@@ -24,14 +24,19 @@ existing APIs so applications do not need to assemble them manually.
 ## Start Here
 
 ```bash
-cogni assets add report.pdf --bundle research/reports
+cogni asset add report.pdf --bundle research/reports
 cogni ingest report.pdf
-cogni jobs status <job-id>
-cogni documents show <document-id>
+cogni ingest --bundle research/reports
+cogni job status <job-id>
+cogni document show <document-id>
 ```
 
 No storage path is required. The configured Storage Runtime chooses the
 physical provider and logical roles.
+
+Ordinary users do not select a model. An operator may enable Docling,
+PyMuPDF, or bounded Cognityx Inference resolution through advanced
+configuration. Inference proposals never replace observed PDF facts.
 
 - [Preferred CLI](cli.md)
 - [Python API](api.md)

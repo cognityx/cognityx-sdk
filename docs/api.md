@@ -10,8 +10,9 @@ cogni = Cogni.load()
 
 Advanced callers may provide `context`, `context_file`, `context_overrides`,
 `cwd`, `user_context_file`, `storage_runtime`, `storage_config`,
-`catalog_path`, `jobs_database`, and an Ingest `control` client. Conflicting context or Storage
-arguments are rejected.
+`catalog_path`, `jobs_database`, `inference_config`, `parser_policy`,
+`parser_backends`, and an Ingest `control` client. Conflicting context or
+Storage arguments are rejected.
 
 ## Assets
 
@@ -69,6 +70,7 @@ deleted_bundles = cogni.doc_bundles.list_deleted()
 path_run = cogni.ingest_path("report.pdf")
 asset_run = cogni.ingest_asset("src-...")
 bundle_run = cogni.ingest_bundle("bun-...")
+bundle_path_run = cogni.ingest_bundle_path("legal/hr")
 
 print(path_run.run_id, path_run.job_id)
 for result in path_run.results:

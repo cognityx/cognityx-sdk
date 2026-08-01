@@ -8,12 +8,16 @@ from threading import RLock
 from typing import Any
 
 from cognityx_ingest import (
+    BoundedInferenceResolver,
+    ExtractionPolicy,
     IngestManager,
     IngestRunResult,
     IngestService,
+    ParserRouter,
     SourceAssetCleanupService,
     SourceAssetRegistry,
 )
+from cognityx_ingest.enhancement import load_resolution_config
 from cognityx_ingest.control import ControlClient
 from cognityx_jobs import JobRepository
 from cognityx_resource import ExecutionContext, ResourceContext, load_resource_context
@@ -34,12 +38,18 @@ class Cogni:
         storage: StorageRuntime,
         catalog_path: str | Path | None = None,
         jobs_database: str | Path | None = None,
+        inference_config: str | Path | None = None,
+        parser_policy: str = "fixed",
+        parser_backends: tuple[str, ...] = ("basic",),
         control: ControlClient | None = None,
     ) -> None:
         self._context = context
         self._storage = storage
         self._catalog_path = catalog_path
         self._jobs_database = Path(jobs_database) if jobs_database else None
+        self._inference_config = Path(inference_config) if inference_config else None
+        self._parser_policy = parser_policy
+        self._parser_backends = parser_backends
         self._control = control
         self._registry: SourceAssetRegistry | None = None
         self._assets: Assets | None = None
@@ -64,6 +74,9 @@ class Cogni:
         storage_config: str | Path | None = None,
         catalog_path: str | Path | None = None,
         jobs_database: str | Path | None = None,
+        inference_config: str | Path | None = None,
+        parser_policy: str = "fixed",
+        parser_backends: tuple[str, ...] = ("basic",),
         control: ControlClient | None = None,
     ) -> "Cogni":
         if context is not None and any(
@@ -93,6 +106,9 @@ class Cogni:
             storage=selected_storage,
             catalog_path=catalog_path,
             jobs_database=jobs_database,
+            inference_config=inference_config,
+            parser_policy=parser_policy,
+            parser_backends=parser_backends,
             control=control,
         )
 
@@ -166,11 +182,25 @@ class Cogni:
     def ingest_service(self) -> IngestService:
         with self._lock:
             if self._ingest_service is None:
+                resolution_config = load_resolution_config(self._inference_config)
+                resolver = (
+                    BoundedInferenceResolver(resolution_config)
+                    if resolution_config is not None
+                    else None
+                )
+                extractor = ParserRouter(
+                    policy=ExtractionPolicy(
+                        self._parser_policy, self._parser_backends
+                    ),
+                    selector=resolver if self._parser_policy == "agent" else None,
+                )
                 self._ingest_service = IngestService(
                     self._storage.for_role("artifact"),
+                    extractor=extractor,
                     jobs=self.job_repository,
                     registry=self.source_asset_registry,
                     control=self._control,
+                    resolver=resolver,
                 )
             return self._ingest_service
 
@@ -209,6 +239,10 @@ class Cogni:
         return self.ingest_service.ingest_bundle(
             bundle_id, self.source_asset_registry, self.new_execution()
         )
+
+    def ingest_bundle_path(self, path: str) -> IngestRunResult:
+        bundle = self.doc_bundles.resolve(path, create=False)
+        return self.ingest_bundle(bundle.bundle_id)
 
     def new_execution(self) -> ExecutionContext:
         return ExecutionContext.create(self._context)

@@ -103,7 +103,7 @@ def test_cogni_complete_dataforge_ingest_flow(tmp_path: Path, monkeypatch, capsy
     evidence_payload = _run(capsys, "artifacts", "read", document_id, "evidence")[1]
     evidence = json.loads(evidence_payload["content"].splitlines()[0])
 
-    assert run_record["schema_version"] == "cognityx.ingest.run/v1"
+    assert run_record["schema_version"] == "cognityx.ingest.run/v2"
     assert run_record["document_ids"] == [document_id]
     assert evidence["schema_version"] == "cognityx.ingest.evidence/v2"
     assert evidence["source_asset_id"] == asset_id
@@ -114,6 +114,80 @@ def test_cogni_complete_dataforge_ingest_flow(tmp_path: Path, monkeypatch, capsy
     assert main(["jobs", "watch", bundle_run["job_id"]]) == 0
     watched = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert watched[-1]["event"] == "run_completed"
+
+
+def test_singular_bundle_path_and_provenance_flow(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    _configure_runtime(tmp_path, monkeypatch)
+    source = tmp_path / "policy.pdf"
+    _write_pdf(source)
+
+    first = _run(
+        capsys,
+        "bundle",
+        "create",
+        "legal/hr",
+        "--tenant-id",
+        "tenant-a",
+    )[1]
+    second = _run(
+        capsys,
+        "bundle",
+        "create",
+        "legal/hr",
+        "--tenant-id",
+        "tenant-b",
+    )[1]
+    assert first["path"] == second["path"] == "legal/hr"
+    assert first["context_id"] != second["context_id"]
+    assert first["bundle_id"] != second["bundle_id"]
+
+    asset = _run(
+        capsys,
+        "asset",
+        "add",
+        str(source),
+        "--bundle",
+        "legal/hr",
+        "--tenant-id",
+        "tenant-a",
+    )[1]
+    run = _run(
+        capsys,
+        "ingest",
+        "--bundle",
+        "legal/hr",
+        "--tenant-id",
+        "tenant-a",
+    )[1]
+    assert run["root_bundle_id"] == first["bundle_id"]
+    assert run["documents"][0]["asset_id"] == asset["asset_id"]
+
+    status = _run(
+        capsys,
+        "job",
+        "status",
+        run["job_id"],
+        "--tenant-id",
+        "tenant-a",
+    )[1]
+    document_id = run["documents"][0]["document_id"]
+    provenance = _run(
+        capsys,
+        "artifact",
+        "read",
+        document_id,
+        "provenance",
+        "--tenant-id",
+        "tenant-a",
+    )[1]
+    payload = json.loads(provenance["content"])
+
+    assert status["job"]["state"] == "completed"
+    assert payload["source_asset"]["asset_id"] == asset["asset_id"]
+    assert payload["pages"][0]["physical_page_index"] == 0
+    assert payload["parser"]["selected"] == "basic"
 
 
 def test_storage_root_remains_compatible_with_warning(tmp_path: Path, capsys) -> None:
