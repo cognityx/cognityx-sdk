@@ -19,7 +19,15 @@ cogni asset locate src-...
 
 ## Ingest PDFs
 
-The same command accepts a path, an existing asset ID, or a complete bundle ID:
+The project chooses how PDFs are read once, while the user supplies only the
+document. The normal command is:
+
+```bash
+cogni ingest document.pdf
+```
+
+The same command also accepts a directory, an existing asset ID, or a complete
+bundle path:
 
 ```bash
 cogni ingest report.pdf
@@ -31,6 +39,56 @@ cogni ingest --bundle research/reports
 The response includes the run ID, job ID, document IDs, asset IDs, page counts,
 and stable artifact addresses. DataForge users do not need to select internal
 metadata files.
+
+## Configure Ingest Once
+
+Create `.cognityx/ingest.toml` in the project:
+
+```toml
+[ingest]
+parser_policy = "compare"
+parser_backends = ["pymupdf", "docling", "basic"]
+
+[ingest.inference]
+enabled = false
+```
+
+`compare` asks each installed reader for observed facts and lets Ingest combine
+the complementary results. This combination is technically called parser
+fusion. `basic` remains last so a PDF can still be handled when the optional
+rich readers are unavailable.
+
+Install all configured rich readers with:
+
+```bash
+pip install "cognityx[rich-ingest]"
+```
+
+Inspect or validate the effective settings before a run:
+
+```bash
+cogni ingest-config show
+cogni ingest-config validate
+```
+
+`show` reports each effective value and whether it came from the command line,
+environment-selected file, project file, user file, or built-in defaults. It
+does not print inference credentials or the contents of an inference target
+file.
+
+Values are resolved independently in this order:
+
+```text
+CLI override
+> COGNITYX_INGEST_CONFIG file
+> .cognityx/ingest.toml
+> ~/.config/cognityx/ingest.toml
+> built-in fixed/basic defaults
+```
+
+`$XDG_CONFIG_HOME/cognityx/ingest.toml` replaces the shown user path when
+`XDG_CONFIG_HOME` is set. A missing configuration file is safe: Ingest uses the
+Basic reader with inference disabled.
 
 ## Monitor Work
 
@@ -91,21 +149,23 @@ An operator may select a configuration explicitly:
 cogni ingest report.pdf --storage-config .cognityx/storage.toml
 ```
 
-Rich extraction and bounded inference are advanced operator controls:
+Parser flags remain advanced, one-run overrides. Explicit flags take priority
+over configuration:
 
 ```bash
 cogni ingest report.pdf \
-  --parser-policy fallback \
-  --parser-backend docling \
+  --parser-policy fixed \
   --parser-backend pymupdf \
-  --parser-backend basic \
   --inference-config .cognityx/ingest-inference.toml
 ```
 
-The Inference file contains an operator-approved target list. For local work,
+The Inference file contains an operator-approved target list and explicitly
+enables bounded inference for that run. For local work,
 its named server profile starts the worker and loads the configured model.
 Only unresolved provenance tasks are sent, calls and tokens are bounded, and
 invented anchors are rejected. DataForge users do not need these options.
+When `ingest.inference.enabled` is `true` in project configuration, an operator
+must provide that target file through `COGNITYX_INGEST_INFERENCE_CONFIG`.
 
 Successful stdout is JSON. Diagnostics go to stderr. Exit codes are `0` for
 success, `1` for operational failure, `2` for arguments or missing

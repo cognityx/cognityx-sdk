@@ -1,0 +1,218 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from cognityx import Cogni, load_ingest_configuration
+from cognityx.cli import main
+from cognityx_storage import StorageConfig, StorageRuntime
+
+
+def _write_config(
+    path: Path,
+    *,
+    policy: str | None = None,
+    backends: tuple[str, ...] | None = None,
+    inference: bool | None = None,
+) -> None:
+    lines = ["[ingest]"]
+    if policy is not None:
+        lines.append(f'parser_policy = "{policy}"')
+    if backends is not None:
+        selected = ", ".join(f'"{item}"' for item in backends)
+        lines.append(f"parser_backends = [{selected}]")
+    if inference is not None:
+        lines.extend(
+            ("", "[ingest.inference]", f"enabled = {str(inference).lower()}")
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_ingest_configuration_precedence_is_per_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = tmp_path / "user.toml"
+    project = tmp_path / "project"
+    environment = tmp_path / "environment.toml"
+    _write_config(user, policy="rule", backends=("basic",), inference=True)
+    _write_config(
+        project / ".cognityx/ingest.toml", policy="compare", inference=False
+    )
+    _write_config(
+        environment,
+        policy="rule",
+        backends=("pymupdf", "docling", "basic"),
+    )
+    monkeypatch.setenv("COGNITYX_INGEST_CONFIG", str(environment))
+
+    layered = load_ingest_configuration(cwd=project, user_config_file=user)
+    selected = load_ingest_configuration(
+        cwd=project,
+        user_config_file=user,
+        parser_policy="fallback",
+    )
+
+    assert layered.parser_policy == "rule"
+    assert layered.inference_enabled is False
+    assert layered.sources["parser_policy"] == f"environment:{environment}"
+    assert layered.sources["inference_enabled"] == (
+        f"project:{project / '.cognityx/ingest.toml'}"
+    )
+    assert selected.parser_policy == "fallback"
+    assert selected.parser_backends == ("pymupdf", "docling", "basic")
+    assert selected.inference_enabled is False
+    assert selected.sources["parser_policy"] == "cli"
+    assert selected.sources["parser_backends"] == f"environment:{environment}"
+    assert selected.sources["inference_enabled"] == (
+        f"project:{project / '.cognityx/ingest.toml'}"
+    )
+
+
+def test_project_configuration_is_discovered_from_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    config = project / ".cognityx/ingest.toml"
+    _write_config(
+        config,
+        policy="compare",
+        backends=("pymupdf", "docling", "basic"),
+        inference=False,
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user-config"))
+
+    selected = load_ingest_configuration(cwd=project)
+
+    assert selected.parser_policy == "compare"
+    assert selected.parser_backends == ("pymupdf", "docling", "basic")
+    assert selected.inference_enabled is False
+    assert set(selected.sources.values()) == {f"project:{config}"}
+
+
+def test_cli_override_and_show_report_effective_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_config(
+        tmp_path / ".cognityx/ingest.toml",
+        policy="compare",
+        backends=("pymupdf", "docling", "basic"),
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user-config"))
+
+    assert main(
+        [
+            "ingest-config",
+            "show",
+            "--parser-policy",
+            "fixed",
+            "--parser-backend",
+            "basic",
+        ]
+    ) == 0
+    shown = json.loads(capsys.readouterr().out)
+
+    assert shown["ingest"]["parser_policy"] == "fixed"
+    assert shown["ingest"]["parser_backends"] == ["basic"]
+    assert shown["sources"]["parser_policy"] == "cli"
+    assert shown["sources"]["parser_backends"] == "cli"
+    assert "config" not in shown["ingest"]["inference"]
+
+
+@pytest.mark.parametrize(
+    "content,match",
+    [
+        ('[ingest]\nparser_policy = "invented"\n', "parser_policy"),
+        (
+            '[ingest]\nparser_backends = ["pymupdf", "unknown"]\n',
+            "parser_backends",
+        ),
+    ],
+)
+def test_invalid_policy_or_backend_is_rejected(
+    tmp_path: Path, content: str, match: str
+) -> None:
+    config = tmp_path / ".cognityx/ingest.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=match):
+        load_ingest_configuration(cwd=tmp_path)
+
+
+def test_inference_disabled_prevents_environment_activation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_config(
+        tmp_path / ".cognityx/ingest.toml",
+        policy="compare",
+        backends=("basic",),
+        inference=False,
+    )
+    monkeypatch.setenv(
+        "COGNITYX_INGEST_INFERENCE_CONFIG", str(tmp_path / "must-not-load.toml")
+    )
+    monkeypatch.setattr(
+        "cognityx.client.load_resolution_config",
+        lambda _path: pytest.fail("disabled inference configuration was loaded"),
+    )
+    cogni = Cogni.load(
+        cwd=tmp_path,
+        storage_runtime=StorageRuntime.from_config(
+            StorageConfig.built_in(root=tmp_path / "storage")
+        ),
+        catalog_path=tmp_path / "catalog.sqlite3",
+    )
+
+    assert cogni.ingest_configuration.inference_enabled is False
+    assert cogni.ingest_service._resolver is None
+
+
+def test_inference_enabled_requires_a_target_configuration(
+    tmp_path: Path,
+) -> None:
+    _write_config(
+        tmp_path / ".cognityx/ingest.toml",
+        policy="compare",
+        backends=("basic",),
+        inference=True,
+    )
+    cogni = Cogni.load(
+        cwd=tmp_path,
+        storage_runtime=StorageRuntime.from_config(
+            StorageConfig.built_in(root=tmp_path / "storage")
+        ),
+        catalog_path=tmp_path / "catalog.sqlite3",
+    )
+
+    with pytest.raises(ValueError, match="no inference target"):
+        cogni.ingest_service
+
+
+def test_no_configuration_uses_safe_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user-config"))
+    selected = load_ingest_configuration(cwd=tmp_path)
+
+    assert selected.parser_policy == "fixed"
+    assert selected.parser_backends == ("basic",)
+    assert selected.inference_enabled is False
+    assert set(selected.sources.values()) == {"built-in defaults"}
+
+
+def test_validate_reports_valid_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_config(tmp_path / ".cognityx/ingest.toml", policy="compare")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user-config"))
+
+    assert main(["ingest-config", "validate"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["valid"] is True
+    assert payload["ingest"]["parser_policy"] == "compare"

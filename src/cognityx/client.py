@@ -26,6 +26,7 @@ from cognityx_storage import StorageRuntime
 from cognityx.assets import Assets
 from cognityx.cleanup import Cleanup
 from cognityx.doc_bundles import DocBundles
+from cognityx.ingest_config import IngestConfiguration, load_ingest_configuration
 
 
 class Cogni:
@@ -41,6 +42,8 @@ class Cogni:
         inference_config: str | Path | None = None,
         parser_policy: str = "fixed",
         parser_backends: tuple[str, ...] = ("basic",),
+        inference_enabled: bool | None = None,
+        ingest_configuration: IngestConfiguration | None = None,
         control: ControlClient | None = None,
     ) -> None:
         self._context = context
@@ -48,8 +51,23 @@ class Cogni:
         self._catalog_path = catalog_path
         self._jobs_database = Path(jobs_database) if jobs_database else None
         self._inference_config = Path(inference_config) if inference_config else None
-        self._parser_policy = parser_policy
-        self._parser_backends = parser_backends
+        self._ingest_configuration = ingest_configuration or IngestConfiguration(
+            parser_policy=parser_policy,
+            parser_backends=parser_backends,
+            inference_enabled=(
+                bool(inference_config)
+                if inference_enabled is None
+                else inference_enabled
+            ),
+            sources={
+                "parser_policy": "constructor",
+                "parser_backends": "constructor",
+                "inference_enabled": "constructor",
+            },
+        )
+        self._parser_policy = self._ingest_configuration.parser_policy
+        self._parser_backends = self._ingest_configuration.parser_backends
+        self._inference_enabled = self._ingest_configuration.inference_enabled
         self._control = control
         self._registry: SourceAssetRegistry | None = None
         self._assets: Assets | None = None
@@ -75,8 +93,10 @@ class Cogni:
         catalog_path: str | Path | None = None,
         jobs_database: str | Path | None = None,
         inference_config: str | Path | None = None,
-        parser_policy: str = "fixed",
-        parser_backends: tuple[str, ...] = ("basic",),
+        parser_policy: str | None = None,
+        parser_backends: tuple[str, ...] | None = None,
+        inference_enabled: bool | None = None,
+        user_ingest_config_file: str | Path | None = None,
         control: ControlClient | None = None,
     ) -> "Cogni":
         if context is not None and any(
@@ -101,14 +121,25 @@ class Cogni:
             config_file=storage_config,
             cwd=cwd,
         )
+        selected_ingest = load_ingest_configuration(
+            cwd=cwd,
+            user_config_file=user_ingest_config_file,
+            parser_policy=parser_policy,
+            parser_backends=parser_backends,
+            inference_enabled=(
+                True if inference_config is not None else inference_enabled
+            ),
+        )
         return cls(
             context=selected_context,
             storage=selected_storage,
             catalog_path=catalog_path,
             jobs_database=jobs_database,
             inference_config=inference_config,
-            parser_policy=parser_policy,
-            parser_backends=parser_backends,
+            parser_policy=selected_ingest.parser_policy,
+            parser_backends=selected_ingest.parser_backends,
+            inference_enabled=selected_ingest.inference_enabled,
+            ingest_configuration=selected_ingest,
             control=control,
         )
 
@@ -123,6 +154,10 @@ class Cogni:
     @property
     def storage(self) -> StorageRuntime:
         return self._storage
+
+    @property
+    def ingest_configuration(self) -> IngestConfiguration:
+        return self._ingest_configuration
 
     @property
     def assets(self) -> Assets:
@@ -182,7 +217,16 @@ class Cogni:
     def ingest_service(self) -> IngestService:
         with self._lock:
             if self._ingest_service is None:
-                resolution_config = load_resolution_config(self._inference_config)
+                resolution_config = (
+                    load_resolution_config(self._inference_config)
+                    if self._inference_enabled
+                    else None
+                )
+                if self._inference_enabled and resolution_config is None:
+                    raise ValueError(
+                        "Ingest inference is enabled but no inference target "
+                        "configuration was supplied."
+                    )
                 resolver = (
                     BoundedInferenceResolver(resolution_config)
                     if resolution_config is not None
@@ -256,6 +300,7 @@ class Cogni:
             "project_id": self.context.project_id,
             "workspace_id": self.context.workspace_id,
             "storage": self._storage.describe(),
+            "ingest": self._ingest_configuration.to_dict()["ingest"],
             "source_asset_catalog": None,
         }
         with self._lock:

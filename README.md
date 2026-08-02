@@ -25,6 +25,22 @@ cogni job status <job-id>
 cogni document show <document-id>
 ```
 
+Projects choose their document readers once in `.cognityx/ingest.toml`; users
+do not repeat parser options on every command:
+
+```toml
+[ingest]
+parser_policy = "compare"
+parser_backends = ["pymupdf", "docling", "basic"]
+
+[ingest.inference]
+enabled = false
+```
+
+Install the optional rich readers with `pip install "cognityx[rich-ingest]"`.
+Without a configuration file or that extra, Ingest safely uses its Basic PDF
+reader.
+
 The SDK is a thin composition layer. Ingest still owns document processing,
 Storage owns bytes and safe cleanup, Resource owns execution context, and Jobs
 owns durable status and ordered events.

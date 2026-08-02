@@ -34,8 +34,15 @@ cogni document show <document-id>
 No storage path is required. The configured Storage Runtime chooses the
 physical provider and logical roles.
 
-Ordinary users do not select a model. An operator may enable Docling,
-PyMuPDF, or bounded Cognityx Inference resolution through advanced
+The project records its preferred document readers once in
+`.cognityx/ingest.toml`. After that, the normal command remains:
+
+```bash
+cogni ingest document.pdf
+```
+
+Ordinary users do not select a parser or model on each run. An operator may
+enable Docling, PyMuPDF, or bounded Cognityx Inference resolution through the
 configuration. Inference proposals never replace observed PDF facts.
 
 - [Preferred CLI](cli.md)

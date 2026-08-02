@@ -18,6 +18,7 @@ from cognityx_ingest.models import SourceAssetBatchResult
 from cognityx_storage import StorageConfig, StorageRuntime
 
 from cognityx.client import Cogni
+from cognityx.ingest_config import load_ingest_configuration
 from cognityx.serialization import (
     asset_deletion,
     asset_location,
@@ -57,7 +58,7 @@ def _common_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--parser-policy",
         choices=("fixed", "rule", "fallback", "compare", "agent"),
-        default="fixed",
+        default=None,
         help="Advanced extraction selection policy.",
     )
     parser.add_argument(
@@ -132,6 +133,16 @@ def _parser() -> argparse.ArgumentParser:
     ingest_input.add_argument("--asset", dest="asset_id")
     ingest_input.add_argument("--bundle", dest="bundle_path")
     ingest_input.add_argument("--bundle-id")
+
+    ingest_config = commands.add_parser(
+        "ingest-config", help="Inspect effective Ingest configuration."
+    )
+    ingest_config_commands = ingest_config.add_subparsers(
+        dest="action", required=True
+    )
+    ingest_config_commands.add_parser("show", parents=[common])
+    ingest_config_commands.add_parser("validate", parents=[common])
+
     jobs = commands.add_parser(
         "job", aliases=("jobs",), help="Inspect or cancel ingest work."
     )
@@ -246,9 +257,24 @@ def _load(args: argparse.Namespace) -> Cogni:
         catalog_path=getattr(args, "catalog_path", None),
         jobs_database=getattr(args, "jobs_database", None),
         inference_config=getattr(args, "inference_config", None),
-        parser_policy=getattr(args, "parser_policy", "fixed"),
-        parser_backends=tuple(getattr(args, "parser_backend", None) or ("basic",)),
+        parser_policy=getattr(args, "parser_policy", None),
+        parser_backends=(
+            tuple(args.parser_backend)
+            if getattr(args, "parser_backend", None) is not None
+            else None
+        ),
     )
+
+
+def _resolved_ingest_configuration(args: argparse.Namespace) -> dict[str, object]:
+    selected = load_ingest_configuration(
+        parser_policy=getattr(args, "parser_policy", None),
+        parser_backends=getattr(args, "parser_backend", None),
+        inference_enabled=(
+            True if getattr(args, "inference_config", None) is not None else None
+        ),
+    )
+    return selected.to_dict()
 
 
 def _execute(args: argparse.Namespace) -> Any:
@@ -269,6 +295,11 @@ def _execute(args: argparse.Namespace) -> Any:
             stacklevel=3,
         )
         args.group = compatibility[args.group]
+    if args.group == "ingest-config":
+        selected = _resolved_ingest_configuration(args)
+        if args.action == "validate":
+            return {"valid": True, **selected}
+        return selected
     cogni = _load(args)
     if args.group == "asset":
         if args.action == "add":
