@@ -8,11 +8,16 @@ from cognityx import Cogni
 cogni = Cogni.load()
 ```
 
+`Cogni.load()` resolves `.cognityx/ingest.toml` with the same precedence as the
+CLI. The resolved, secret-free values and their sources are available as
+`cogni.ingest_configuration`.
+
 Advanced callers may provide `context`, `context_file`, `context_overrides`,
 `cwd`, `user_context_file`, `storage_runtime`, `storage_config`,
 `catalog_path`, `jobs_database`, `inference_config`, `parser_policy`,
-`parser_backends`, and an Ingest `control` client. Conflicting context or
-Storage arguments are rejected.
+`parser_backends`, `inference_enabled`, `user_ingest_config_file`, and an
+Ingest `control` client. Explicit parser values override discovered
+configuration. Conflicting context or Storage arguments are rejected.
 
 ## Assets
 
@@ -65,6 +70,17 @@ deleted_bundles = cogni.doc_bundles.list_deleted()
 ```
 
 ## Ingest
+
+Project configuration keeps the Python call configuration-first too:
+
+```toml
+[ingest]
+parser_policy = "compare"
+parser_backends = ["pymupdf", "docling", "basic"]
+
+[ingest.inference]
+enabled = false
+```
 
 ```python
 path_run = cogni.ingest_path("report.pdf")

@@ -9,8 +9,13 @@ cognityx-resource · cognityx-storage · cognityx-ingest · cognityx-jobs
                                       · optional cognityx-inference
 ```
 
-`Cogni.load()` resolves one stable `ResourceContext` and one
-`StorageRuntime`. The SourceAsset registry is initialized only when the
+`Cogni.load()` resolves one stable `ResourceContext`, one `StorageRuntime`, and
+one effective Ingest configuration. Ingest settings are layered from safe
+built-in values through user, project, environment-selected, and explicit CLI
+values. The resulting parser policy still enters the existing Ingest
+`ParserRouter`; the SDK does not implement a second parsing path.
+
+The SourceAsset registry is initialized only when the
 `cogni asset` or `cogni bundle` command, the Python `cogni.assets` or
 `cogni.doc_bundles` facade, or the advanced `cogni.source_asset_registry`
 property is first used. Ingest, Assets,
@@ -47,5 +52,5 @@ proposed source anchor before publishing provenance.
 print(cogni.describe())
 ```
 
-The result contains non-secret context, Storage diagnostics, and catalog
-information after lazy registry initialization.
+The result contains non-secret context, effective Ingest settings, Storage
+diagnostics, and catalog information after lazy registry initialization.
