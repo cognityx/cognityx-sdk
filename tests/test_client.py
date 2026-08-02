@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 
 import pytest
+from pypdf import PdfWriter
+from cognityx_ingest.control import ControlDecision
+from cognityx_ingest.control import IngestAuthorizationError
 
 from cognityx import Cogni
 from cognityx_resource import ResourceContext
@@ -102,3 +105,46 @@ def test_new_execution_is_fresh_but_context_is_stable(tmp_path: Path) -> None:
     assert first.context_id == second.context_id == cogni.context_id
     assert first.run_id != second.run_id
     assert first.correlation_id != second.correlation_id
+
+
+class _DenyByTenantControl:
+    def __init__(self, allowed_tenant: str) -> None:
+        self.allowed_tenant = allowed_tenant
+
+    def authorize(self, context, action=None, resource=None, request=None):
+        allowed = context.tenant_id == self.allowed_tenant
+        return ControlDecision(
+            allowed=allowed,
+            reason=None if allowed else "tenant mismatch",
+        )
+
+    def report_usage(self, context, usage) -> None:
+        return None
+
+
+def test_locate_respects_authorization_boundaries(tmp_path: Path) -> None:
+    runtime = StorageRuntime.from_config(StorageConfig.built_in(root=tmp_path / "storage"))
+    source = tmp_path / "policy.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    with source.open("wb") as stream:
+        writer.write(stream)
+    control = _DenyByTenantControl("tenant-a")
+    writer_cogni = Cogni.load(
+        context_overrides={"tenant_id": "tenant-a"},
+        storage_runtime=runtime,
+        catalog_path=tmp_path / "catalog.sqlite3",
+        control=control,
+    )
+    asset = writer_cogni.assets.add(source)
+    run = writer_cogni.ingest_asset(asset.asset_id)
+    document_id = run.results[0].document.document_id
+
+    reader_cogni = Cogni.load(
+        context_overrides={"tenant_id": "tenant-b"},
+        storage_runtime=runtime,
+        catalog_path=tmp_path / "catalog.sqlite3",
+        control=control,
+    )
+    with pytest.raises(IngestAuthorizationError):
+        _ = reader_cogni.documents.locate(document_id)

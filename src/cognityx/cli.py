@@ -159,7 +159,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     run_commands = runs.add_subparsers(dest="action", required=True)
     run_commands.add_parser("list", parents=[common])
-    for name in ("show", "delete"):
+    for name in ("show", "locate", "delete"):
         leaf = run_commands.add_parser(name, parents=[common])
         leaf.add_argument("run_id")
         if name == "delete":
@@ -170,7 +170,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     document_commands = documents.add_subparsers(dest="action", required=True)
     document_commands.add_parser("list", parents=[common])
-    for name in ("show", "delete"):
+    for name in ("show", "locate", "delete"):
         leaf = document_commands.add_parser(name, parents=[common])
         leaf.add_argument("document_id")
         if name == "delete":
@@ -184,6 +184,11 @@ def _parser() -> argparse.ArgumentParser:
     read.add_argument("document_id")
     read.add_argument(
         "name", choices=("document", "evidence", "provenance", "manifest")
+    )
+    locate = artifact_commands.add_parser("locate", parents=[common])
+    locate.add_argument("document_id")
+    locate.add_argument(
+        "name", choices=("document", "evidence", "provenance")
     )
 
     cleanup = commands.add_parser("cleanup", help="Plan or execute physical Blob cleanup.")
@@ -385,6 +390,8 @@ def _execute(args: argparse.Namespace) -> Any:
             return cogni.ingest_manager.list_runs(execution)
         if args.action == "show":
             return cogni.ingest_manager.show_run(execution, args.run_id)
+        if args.action == "locate":
+            return cogni.runs.locate(args.run_id)
         if not args.yes:
             raise _ConfirmationRequired("runs delete requires --yes; no deletion was performed.")
         cogni.ingest_manager.delete_run(execution, args.run_id)
@@ -395,15 +402,19 @@ def _execute(args: argparse.Namespace) -> Any:
             return cogni.ingest_manager.list_documents(execution)
         if args.action == "show":
             return cogni.ingest_manager.show_document(execution, args.document_id)
+        if args.action == "locate":
+            return cogni.documents.locate(args.document_id)
         if not args.yes:
             raise _ConfirmationRequired("documents delete requires --yes; no deletion was performed.")
         cogni.ingest_manager.delete_document(execution, args.document_id)
         return {"deleted_document_id": args.document_id}
     if args.group == "artifact":
-        payload = cogni.ingest_manager.read_artifact(
-            cogni.new_execution(), args.document_id, args.name
-        )
-        return _artifact(args.name, payload)
+        if args.action == "read":
+            payload = cogni.ingest_manager.read_artifact(
+                cogni.new_execution(), args.document_id, args.name
+            )
+            return _artifact(args.name, payload)
+        return cogni.artifacts.locate(args.document_id, args.name)
     if args.group == "cleanup":
         if not 1 <= args.batch_size <= 500:
             raise ValueError("--batch-size must be between 1 and 500.")

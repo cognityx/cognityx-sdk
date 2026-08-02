@@ -24,9 +24,12 @@ from cognityx_resource import ExecutionContext, ResourceContext, load_resource_c
 from cognityx_storage import StorageRuntime
 
 from cognityx.assets import Assets
+from cognityx.artifacts import Artifacts
 from cognityx.cleanup import Cleanup
 from cognityx.doc_bundles import DocBundles
+from cognityx.documents import Documents
 from cognityx.ingest_config import IngestConfiguration, load_ingest_configuration
+from cognityx.runs import Runs
 
 
 class Cogni:
@@ -72,6 +75,9 @@ class Cogni:
         self._registry: SourceAssetRegistry | None = None
         self._assets: Assets | None = None
         self._doc_bundles: DocBundles | None = None
+        self._artifacts: Artifacts | None = None
+        self._documents: Documents | None = None
+        self._runs: Runs | None = None
         self._cleanup_service: SourceAssetCleanupService | None = None
         self._cleanup: Cleanup | None = None
         self._jobs: JobRepository | None = None
@@ -172,6 +178,27 @@ class Cogni:
             if self._doc_bundles is None:
                 self._doc_bundles = DocBundles(self)
             return self._doc_bundles
+
+    @property
+    def artifacts(self) -> Artifacts:
+        with self._lock:
+            if self._artifacts is None:
+                self._artifacts = Artifacts(self)
+            return self._artifacts
+
+    @property
+    def documents(self) -> Documents:
+        with self._lock:
+            if self._documents is None:
+                self._documents = Documents(self)
+            return self._documents
+
+    @property
+    def runs(self) -> Runs:
+        with self._lock:
+            if self._runs is None:
+                self._runs = Runs(self)
+            return self._runs
 
     @property
     def cleanup(self) -> Cleanup:
