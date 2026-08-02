@@ -135,6 +135,8 @@ def test_singular_bundle_path_and_provenance_flow(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
     _configure_runtime(tmp_path, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("COGNITYX_INGEST_CONFIG", raising=False)
     source = tmp_path / "policy.pdf"
     _write_pdf(source)
 

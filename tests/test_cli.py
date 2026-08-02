@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import time
+from pypdf import PdfWriter
 
 from cognityx import Cogni
 from cognityx.cli import main
@@ -157,3 +158,71 @@ def test_assets_add_directory_emits_canonical_batch_json(
     assert payload["items"][0]["relative_path"] == "policy.txt"
     assert payload["items"][0]["asset_id"].startswith("src-")
     assert str(source) not in json.dumps(payload)
+
+
+def test_cli_locate_commands_return_storage_metadata(tmp_path: Path, capsys) -> None:
+    root, catalog = tmp_path / "storage", tmp_path / "catalog.sqlite3"
+    source = tmp_path / "whitepaper.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    with source.open("wb") as stream:
+        writer.write(stream)
+    common = _common(root, catalog)
+
+    _, created, _ = _run(capsys, "assets", "add", str(source), "--bundle", "research", *common)
+    ingest = _run(capsys, "ingest", "--asset", created["asset_id"], *common)[1]
+    document_id = ingest["documents"][0]["document_id"]
+    run_id = ingest["run_id"]
+
+    document_locate = _run(capsys, "document", "locate", document_id, *common)[1]
+    assert "artifacts" in document_locate
+    assert document_locate["artifacts"]["provenance"]["exists"] is True
+    assert "manifest" not in document_locate["artifacts"]
+    assert document_locate["artifacts"]["document"]["backend"] == "LocalStorageBackend"
+
+    artifact_locate = _run(
+        capsys, "artifact", "locate", document_id, "provenance", *common
+    )[1]
+    assert artifact_locate["document_id"] == document_id
+    assert artifact_locate["name"] == "provenance"
+    assert artifact_locate["location"]["exists"]
+    assert artifact_locate["location"]["backend"] == "LocalStorageBackend"
+
+    run_locate = _run(capsys, "run", "locate", run_id, *common)[1]
+    assert run_locate["run_id"] == run_id
+    assert any(
+        item["uri"].startswith("storage://local-main/artifacts/ingest/documents/")
+        for item in run_locate["artifacts"].values()
+    )
+    assert len(run_locate["artifacts"]) >= 3
+
+
+def test_cli_locate_commands_preserve_read_payload_and_metadata(
+    tmp_path: Path, capsys
+) -> None:
+    root, catalog = tmp_path / "storage", tmp_path / "catalog.sqlite3"
+    source = tmp_path / "whitepaper.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    with source.open("wb") as stream:
+        writer.write(stream)
+    common_a = (
+        "--tenant-id", "tenant-a",
+        "--storage-root", str(root),
+        "--catalog-path", str(catalog),
+    )
+    _, created, _ = _run(capsys, "assets", "add", str(source), "--bundle", "research", *common_a)
+    ingest = _run(capsys, "ingest", "--asset", created["asset_id"], *common_a)[1]
+    document_id = ingest["documents"][0]["document_id"]
+    read_payload = _run(
+        capsys, "artifact", "read", document_id, "provenance", *common_a
+    )[1]
+    located_payload = _run(
+        capsys, "artifact", "locate", document_id, "provenance", *common_a
+    )[1]
+
+    assert located_payload["location"]["uri"].startswith("storage://local-main/artifacts/")
+    assert located_payload["location"]["backend"] == "LocalStorageBackend"
+    assert located_payload["location"]["exists"] is True
+    assert "secret" not in json.dumps(located_payload).lower()
+    assert "source_asset" in json.loads(read_payload["content"])

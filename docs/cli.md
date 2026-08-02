@@ -109,11 +109,37 @@ PDF parse remains synchronous.
 ```bash
 cogni run list
 cogni run show <run-id>
+cogni run locate <run-id>
 cogni document list
 cogni document show <document-id>
-cogni artifact read <document-id> evidence
+cogni document locate <document-id>
+cogni artifact locate <document-id> provenance
 cogni artifact read <document-id> provenance
+cogni artifact read <document-id> evidence
 ```
+
+`document locate` and `run locate` return canonical `storage://<profile>/<logical-key>` URIs and optional
+native paths:
+
+```text
+{
+  "uri": "storage://local-main/artifacts/ingest/documents/<id>/provenance.json",
+  "backend": "LocalStorageBackend",
+  "role": "artifact",
+  "local_path": "/mnt/data/cognityx/storage/artifacts/ingest/documents/<id>/provenance.json",
+  "exists": true,
+  "size_bytes": 12345
+}
+```
+
+For remote-only storage profiles `local_path` is `null`.
+
+`artifact locate <document-id> <name>` is intended for automation. Supported
+`name` values are `document`, `evidence`, and `provenance`, plus parser outputs
+such as `parser/pymupdf` when present.
+
+`artifact read` is unchanged and still returns the artifact payload; `locate` only
+returns metadata.
 
 ## Delete Safely
 
