@@ -8,6 +8,8 @@ from pypdf import PdfWriter
 
 from cognityx.cli import main
 
+from test_artifact_reads import _write_text_pdf
+
 
 def _run(capsys, *arguments: str):
     code = main(list(arguments))
@@ -264,3 +266,51 @@ def test_storage_root_remains_compatible_with_warning(tmp_path: Path, capsys) ->
 
     assert code == 0
     assert json.loads(capsys.readouterr().out)["asset_id"].startswith("src-")
+
+
+def test_config_first_v3_2_artifact_and_provenance_user_flow(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = _configure_runtime(tmp_path, monkeypatch)
+    config = tmp_path / ".cognityx/ingest.toml"
+    config.parent.mkdir()
+    config.write_text(
+        '[ingest]\nparser_policy = "fixed"\nparser_backends = ["basic"]\n',
+        encoding="utf-8",
+    )
+    source = tmp_path / "settled.pdf"
+    _write_text_pdf(source, "Settled provenance address user flow")
+    monkeypatch.chdir(tmp_path)
+
+    run = _run(capsys, "ingest", str(source))[1]
+    document_id = run["documents"][0]["document_id"]
+    assert main(["job", "watch", run["job_id"]]) == 0
+    watched = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert watched[-1]["event"] == "ingest_completed"
+    assert _run(capsys, "document", "show", document_id)[1]["document"]
+
+    payloads = {
+        name: _run(capsys, "artifact", "read", document_id, name)[1]
+        for name in (
+            "provenance",
+            "canonical-content",
+            "source-graph",
+            "provenance-addresses",
+        )
+    }
+    catalog = json.loads(payloads["provenance-addresses"]["content"])
+    address_id = catalog["strong_addresses"][0]["address_id"]
+    available = _run(capsys, "artifact", "available", document_id)[1]
+    located = _run(capsys, "artifact", "locate", document_id, "source-graph")[1]
+
+    parser_dir = root / "artifacts/ingest/documents" / document_id / "parser"
+    for parser_payload in parser_dir.glob("*.json"):
+        parser_payload.unlink()
+    resolved = _run(
+        capsys, "provenance", "resolve", document_id, address_id
+    )[1]
+
+    assert resolved["status"] == "exact"
+    assert "source-graph" in available["artifacts"]
+    assert "local_path" not in located["location"]
+    assert str(root) not in json.dumps(located)

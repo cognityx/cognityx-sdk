@@ -76,6 +76,12 @@ environment-selected file, project file, user file, or built-in defaults. It
 does not print inference credentials or the contents of an inference target
 file.
 
+It also reports an adaptive routing classification as `planning-only`. This is
+an explanation of the active parser policy, not another execution setting. The
+current executable controls remain `parser_policy`, `parser_backends`, and
+`ingest.inference.enabled`. A `[ingest.routing]` table is rejected because the
+merged application path cannot yet execute all three adaptive modes.
+
 Values are resolved independently in this order:
 
 ```text
@@ -116,30 +122,62 @@ cogni document locate <document-id>
 cogni artifact locate <document-id> provenance
 cogni artifact read <document-id> provenance
 cogni artifact read <document-id> evidence
+cogni artifact read <document-id> canonical-content
+cogni artifact read <document-id> source-graph
+cogni artifact read <document-id> provenance-addresses
+cogni artifact available <document-id>
+cogni provenance resolve <document-id> <address-id>
 ```
 
-`document locate` and `run locate` return canonical `storage://<profile>/<logical-key>` URIs and optional
-native paths:
+`artifact locate` returns a canonical
+`storage://<profile>/<logical-key>` URI and safe metadata:
 
 ```text
 {
   "uri": "storage://local-main/artifacts/ingest/documents/<id>/provenance.json",
   "backend": "LocalStorageBackend",
   "role": "artifact",
-  "local_path": "/mnt/data/cognityx/storage/artifacts/ingest/documents/<id>/provenance.json",
   "exists": true,
   "size_bytes": 12345
 }
 ```
 
-For remote-only storage profiles `local_path` is `null`.
+The artifact facade never returns a physical local path. `document locate` and
+`run locate` retain their older broader diagnostic shape for compatibility;
+new automation should prefer the bounded artifact facade.
 
-`artifact locate <document-id> <name>` is intended for automation. Supported
-`name` values are `document`, `evidence`, and `provenance`, plus parser outputs
-such as `parser/pymupdf` when present.
+Supported artifact names are `document`, `evidence`, `provenance`, `manifest`,
+`canonical-content`, `source-graph`, `provenance-addresses`,
+`parser-observations`, and `parser-fusion-decisions`. The last two appear only
+when the selected parser policy produced them. Raw parser-native payloads and
+arbitrary Storage keys are not part of this surface.
 
 `artifact read` is unchanged and still returns the artifact payload; `locate` only
 returns metadata.
+
+`provenance resolve` reads the document's own Source Graph and address catalog,
+validates them, and resolves one exact ID. Its status is one of `exact`,
+`redirected`, `ambiguous`, `obsolete`, `forbidden`, or `unresolved`. A forbidden
+result never contains protected target details. Resolution does not reopen the
+PDF, load parser-native bytes, or start a model.
+
+## Parser Policy And Adaptive Planning
+
+The five legacy parser policies are executable today because `Cogni` passes them
+to Ingest's `ParserRouter`:
+
+- `fixed`, `rule`, `fallback`, `compare`, and `agent` can change parser execution.
+- `deterministic` has a planning API, but no current `Cogni` plan-to-router bridge.
+- `hybrid` has a planning API, requires an injected proposal provider, and has no
+  concrete provider or current `Cogni` execution bridge.
+- `llm-directed` has a planning API, requires an injected proposal provider, and
+  has no concrete provider or current `Cogni` execution bridge.
+
+The live parser capability registry can describe available parsers, but normal
+SDK ingestion still constructs the established `ParserRouter` directly. The
+compatibility adapter refuses plans whose scope, purpose, stop condition, tags,
+or provider requirements would be lost, so the SDK does not silently map
+`llm-directed` to `agent`.
 
 ## Delete Safely
 
@@ -205,6 +243,9 @@ The component-level `cognityx-ingest` command; plural `assets`, `doc-bundles`,
 `bundles`; `jobs show`; ID-only `--bundle-id`; and `--storage-root` remain
 temporarily available. New scripts use singular resource commands, bundle
 paths, and normal Storage Runtime loading.
+
+The standalone `cognityx-ingest` CLI is compatibility-only and may expose fewer
+inspection names. Use `cogni` for the v3.2 user-facing read and resolution APIs.
 
 The old generated `source.pdf` artifact is not available. Use `cogni asset
 show` or `cogni asset locate` for the original SourceAsset.

@@ -19,6 +19,11 @@ Advanced callers may provide `context`, `context_file`, `context_overrides`,
 Ingest `control` client. Explicit parser values override discovered
 configuration. Conflicting context or Storage arguments are rejected.
 
+`cogni.ingest_configuration.to_dict()` includes a derived adaptive routing term
+with `execution_active: false`. It explains how the executable legacy policy is
+classified by the v3.2 planner; it is not an accepted setting and does not claim
+that an adaptive plan reaches parser execution.
+
 ## Assets
 
 ```python
@@ -93,8 +98,30 @@ for result in path_run.results:
     print(result.document.document_id, len(result.evidence))
 ```
 
-Use `cogni.ingest_manager` for job, run, document, and generated-artifact
-inspection. This is the same manager used by the CLI.
+Use `cogni.ingest_manager` for advanced job, run, and document administration.
+Use the bounded artifact facade for normal generated-output inspection:
+
+```python
+names = cogni.artifacts.available(document_id)
+graph_bytes = cogni.artifacts.read(document_id, "source-graph")
+location = cogni.artifacts.locate(document_id, "provenance-addresses")
+```
+
+Names come from a closed public vocabulary. Reads authorize the document,
+verify its manifest against the configured logical Storage URI, and return exact
+bytes. Location output deliberately omits physical paths.
+
+Resolve a stable evidence address with the same document-owned artifacts:
+
+```python
+resolution = cogni.provenance.resolve(document_id, address_id)
+print(resolution["status"])
+```
+
+The resolver preserves `exact`, `redirected`, `ambiguous`, `obsolete`,
+`forbidden`, and `unresolved`. It returns accepted or candidate targets only when
+the Ingest resolver permits them. It never returns source text and does not need
+the original PDF, parser-native bytes, inference, or a network connection.
 
 ## Blob cleanup
 

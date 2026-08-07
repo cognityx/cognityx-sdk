@@ -23,6 +23,8 @@ cogni ingest --asset src-...
 cogni ingest --bundle research
 cogni job status <job-id>
 cogni document show <document-id>
+cogni artifact read <document-id> source-graph
+cogni provenance resolve <document-id> <address-id>
 ```
 
 Projects choose their document readers once in `.cognityx/ingest.toml`; users
@@ -44,6 +46,20 @@ reader.
 The SDK is a thin composition layer. Ingest still owns document processing,
 Storage owns bytes and safe cleanup, Resource owns execution context, and Jobs
 owns durable status and ordered events.
+
+After ingestion, `cogni artifact` can read the structured content, the map back
+to the original source, and the stable evidence addresses. The source map is
+technically called a Source Graph. A provenance address is a durable identifier
+for one exact part of that graph. These reads use logical `storage://` addresses;
+users do not provide or receive a physical filesystem path.
+
+The current parser policies (`fixed`, `rule`, `fallback`, `compare`, and
+`agent`) are the controls that reach parser execution today. Ingest also has
+adaptive planning terms (`deterministic`, `hybrid`, and `llm-directed`), but the
+merged application path does not yet connect every adaptive plan to a concrete
+provider and parser invocation. The SDK reports the comparable planning term in
+`cogni ingest-config show` but does not offer a routing flag that would be
+accepted and ignored.
 
 Optional rich parsing and ambiguity resolution use the approved
 `cognityx-inference` client. A model may propose a relationship, but Ingest

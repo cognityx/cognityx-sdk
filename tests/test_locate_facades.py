@@ -21,6 +21,15 @@ class _FakeRuntime:
         self.seen.append(uri)
         return self._locations[uri]
 
+    def for_role(self, role: str):
+        assert role == "artifact"
+        return _FakeRoleStore()
+
+
+class _FakeRoleStore:
+    def uri(self, key: str) -> str:
+        return f"storage://local-main/artifacts/{key}"
+
 
 class _FakeIngestManager:
     def __init__(self, documents: dict, runs: dict) -> None:
@@ -109,6 +118,7 @@ def test_sdk_facade_locates_artifacts_with_authoritative_uris() -> None:
     assert runtime.seen == [manifest["location"]["uri"]]
     assert manifest["location"]["uri"].endswith("/provenance.json")
     assert manifest["name"] == "provenance"
+    assert "local_path" not in manifest["location"]
     assert "secret" not in str(manifest["location"]).lower()
 
 
@@ -160,9 +170,8 @@ def test_sdk_locate_raises_for_unknown_artifact_without_fabricating_paths() -> N
         Artifacts(owner).locate("pdf-example", "missing")
 
 
-def test_sdk_facade_locates_parser_artifact() -> None:
+def test_sdk_facade_does_not_expose_raw_parser_artifacts_by_name() -> None:
     owner, runtime, _, _ = _owner()
-    parser = Artifacts(owner).locate("pdf-example", "parser/pymupdf")
-    assert parser["name"] == "parser/pymupdf"
-    assert parser["location"]["uri"].endswith("/parser/pymupdf.json")
-    assert runtime.seen[-1] == parser["location"]["uri"]
+    with pytest.raises(ValueError, match="Unknown artifact"):
+        Artifacts(owner).locate("pdf-example", "parser/pymupdf")
+    assert runtime.seen == []

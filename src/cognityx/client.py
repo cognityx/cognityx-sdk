@@ -1,4 +1,12 @@
-"""The explicit Cognityx SDK composition root."""
+"""Compose Cognityx components behind one stable, lazy application root.
+
+``Cogni`` exists so applications and the ``cogni`` CLI share one construction
+path for Resource context, Storage, Jobs, Ingest, authorization, and optional
+bounded inference.  The class delegates domain behavior to component APIs,
+initializes expensive services only when first used, and creates a fresh
+execution context for each operation.  It does not duplicate parser, persistence,
+provenance, or cleanup algorithms owned by those components.
+"""
 
 from __future__ import annotations
 
@@ -29,11 +37,20 @@ from cognityx.cleanup import Cleanup
 from cognityx.doc_bundles import DocBundles
 from cognityx.documents import Documents
 from cognityx.ingest_config import IngestConfiguration, load_ingest_configuration
+from cognityx.provenance import Provenance
 from cognityx.runs import Runs
 
 
 class Cogni:
-    """Small, explicit composition layer over Cognityx components."""
+    """Provide the primary Python composition root for Cognityx applications.
+
+    Applications normally call ``Cogni.load``; tests and embedded deployments may
+    inject already-resolved component objects through the constructor.  Facades
+    and services are initialized lazily under one reentrant lock, while each
+    action receives a fresh execution identity derived from the stable Resource
+    context.  The instance owns no parsing semantics: it wires validated settings
+    to merged component APIs and returns their canonical results.
+    """
 
     def __init__(
         self,
@@ -49,6 +66,15 @@ class Cogni:
         ingest_configuration: IngestConfiguration | None = None,
         control: ControlClient | None = None,
     ) -> None:
+        """Store resolved dependencies and prepare lazy component slots.
+
+        ``load`` and advanced dependency-injection callers construct the root with
+        one trusted Resource context and Storage runtime.  Existing parser policy,
+        backend order, and inference enablement are frozen into one effective
+        ``IngestConfiguration``; no parser, model, registry, database, graph, or
+        artifact is opened during construction.  Lazy properties synchronize
+        first creation with ``RLock`` and then reuse component instances.
+        """
         self._context = context
         self._storage = storage
         self._catalog_path = catalog_path
@@ -76,6 +102,7 @@ class Cogni:
         self._assets: Assets | None = None
         self._doc_bundles: DocBundles | None = None
         self._artifacts: Artifacts | None = None
+        self._provenance: Provenance | None = None
         self._documents: Documents | None = None
         self._runs: Runs | None = None
         self._cleanup_service: SourceAssetCleanupService | None = None
@@ -105,6 +132,15 @@ class Cogni:
         user_ingest_config_file: str | Path | None = None,
         control: ControlClient | None = None,
     ) -> "Cogni":
+        """Resolve local configuration and return one ready, still-lazy root.
+
+        Applications and the CLI use this primary factory.  It rejects conflicting
+        injected/discovered context or Storage inputs, resolves Resource, Storage,
+        and per-value Ingest configuration in order, then delegates to ``__init__``.
+        Local configuration reads are the only immediate side effect; parsers,
+        models, catalogs, jobs, and artifacts remain unopened.  Component loaders
+        retain their typed failures, and equal inputs produce equivalent wiring.
+        """
         if context is not None and any(
             value is not None
             for value in (context_file, context_overrides, user_context_file)
@@ -151,22 +187,52 @@ class Cogni:
 
     @property
     def context(self) -> ResourceContext:
+        """Return the stable immutable Resource context shared by all actions.
+
+        Facades and diagnostics read this injected/resolved value; no copy, I/O,
+        authorization, or mutation occurs.  Fresh operation identity belongs to
+        ``new_execution`` rather than this long-lived governance context.
+        """
         return self._context
 
     @property
     def context_id(self) -> str:
+        """Return the canonical identifier of the shared Resource context.
+
+        CLI serializers and component composition use this deterministic shortcut.
+        It delegates to the immutable context, performs no I/O, and is safe for
+        concurrent reads throughout the ``Cogni`` lifecycle.
+        """
         return self._context.context_id
 
     @property
     def storage(self) -> StorageRuntime:
+        """Return the configured public Storage runtime without backend access.
+
+        SDK facades use this runtime to select logical roles and resolve canonical
+        URIs.  The property does not initialize or mutate a backend and deliberately
+        exposes no private implementation attributes or new ownership semantics.
+        """
         return self._storage
 
     @property
     def ingest_configuration(self) -> IngestConfiguration:
+        """Return validated effective Ingest settings and per-value sources.
+
+        Applications and configuration diagnostics inspect this immutable record.
+        Reading it performs no parser, model, file, or network operation; execution
+        consumes the same values later when ``ingest_service`` is first requested.
+        """
         return self._ingest_configuration
 
     @property
     def assets(self) -> Assets:
+        """Return the lazy SourceAsset facade under synchronized first creation.
+
+        Python and CLI asset commands call this property.  It constructs only a
+        lightweight owner-bound facade, reuses it thereafter, and does not open the
+        catalog or source bytes until a facade method requests them.
+        """
         with self._lock:
             if self._assets is None:
                 self._assets = Assets(self)
@@ -174,6 +240,12 @@ class Cogni:
 
     @property
     def doc_bundles(self) -> DocBundles:
+        """Return the lazy logical bundle facade under the shared lock.
+
+        Bundle commands and ``ingest_bundle_path`` use this stable facade.  First
+        access has no Storage or registry side effect beyond allocating the wrapper;
+        domain validation and persistence remain in Ingest when methods are called.
+        """
         with self._lock:
             if self._doc_bundles is None:
                 self._doc_bundles = DocBundles(self)
@@ -181,13 +253,40 @@ class Cogni:
 
     @property
     def artifacts(self) -> Artifacts:
+        """Return the lazy closed settled-artifact inspection facade.
+
+        Python and CLI read/locate commands share this instance.  Construction is
+        synchronized and side-effect free; each operation later authorizes afresh,
+        verifies immutable manifest URI bindings, and avoids parser initialization.
+        """
         with self._lock:
             if self._artifacts is None:
                 self._artifacts = Artifacts(self)
             return self._artifacts
 
     @property
+    def provenance(self) -> Provenance:
+        """Return the lazy deterministic provenance-address facade.
+
+        Python callers and the ``cogni provenance`` command use this property.
+        First access constructs only the lightweight SDK facade under the shared
+        reentrant lock; graphs, catalogs, parsers, and inference remain unloaded
+        until an explicit resolve call reads authorized settled artifacts.  Later
+        accesses return the same stateless facade safely.
+        """
+        with self._lock:
+            if self._provenance is None:
+                self._provenance = Provenance(self)
+            return self._provenance
+
+    @property
     def documents(self) -> Documents:
+        """Return the lazy document-level diagnostic facade.
+
+        Existing document locate callers use this compatibility wrapper.  The
+        property allocates it once under ``RLock`` and performs no document read;
+        authorization and Storage lookup occur only in explicit facade methods.
+        """
         with self._lock:
             if self._documents is None:
                 self._documents = Documents(self)
@@ -195,6 +294,12 @@ class Cogni:
 
     @property
     def runs(self) -> Runs:
+        """Return the lazy run-level diagnostic facade.
+
+        Existing run locate callers use the same owner-bound object for the root's
+        lifetime.  First creation is thread-safe and performs no Jobs or Storage
+        I/O; component failures occur only during an explicit run operation.
+        """
         with self._lock:
             if self._runs is None:
                 self._runs = Runs(self)
@@ -202,6 +307,12 @@ class Cogni:
 
     @property
     def cleanup(self) -> Cleanup:
+        """Return the lazy SDK wrapper for reference-safe Blob cleanup.
+
+        Administrative callers use this facade to plan or explicitly execute
+        cleanup.  Access alone neither initializes the registry nor deletes data;
+        the underlying Ingest/Storage service is requested only by facade methods.
+        """
         with self._lock:
             if self._cleanup is None:
                 self._cleanup = Cleanup(self)
@@ -209,6 +320,13 @@ class Cogni:
 
     @property
     def source_asset_registry(self) -> SourceAssetRegistry:
+        """Load once and return the shared Ingest SourceAsset registry.
+
+        Asset, bundle, ingest, and cleanup composition call this advanced property.
+        Under ``RLock`` it asks Ingest to load the configured catalog and control
+        boundary, then reuses that instance.  Loading may create/open catalog state
+        and propagates component failures; no source object is parsed here.
+        """
         with self._lock:
             if self._registry is None:
                 self._registry = SourceAssetRegistry.load(
@@ -220,6 +338,12 @@ class Cogni:
 
     @property
     def source_asset_cleanup_service(self) -> SourceAssetCleanupService:
+        """Return one cleanup service sharing this root's registry and Storage.
+
+        ``Cleanup`` calls this synchronized property when work is requested.  First
+        access composes existing Ingest behavior from the shared dependencies; it
+        does not itself plan or delete objects.  Reuse prevents split cleanup state.
+        """
         with self._lock:
             if self._cleanup_service is None:
                 self._cleanup_service = SourceAssetCleanupService(
@@ -231,6 +355,14 @@ class Cogni:
 
     @property
     def job_repository(self) -> JobRepository:
+        """Open once and return the durable Jobs repository for Ingest work.
+
+        Ingest service/manager construction calls this property.  It chooses an
+        explicit database or the catalog role's canonical native path, creates the
+        parent directory when needed, and opens ``JobRepository`` under the lock.
+        That filesystem initialization is idempotent; Jobs owns concurrency and
+        typed persistence failures after construction.
+        """
         with self._lock:
             if self._jobs is None:
                 database = self._jobs_database or self._storage.for_role(
@@ -242,6 +374,15 @@ class Cogni:
 
     @property
     def ingest_service(self) -> IngestService:
+        """Compose the existing executable parser path on first ingest action.
+
+        ``ingest_*`` methods call this synchronized property.  It conditionally
+        loads approved bounded-inference configuration, constructs the established
+        ``ParserRouter`` from validated legacy policy/backends, and injects shared
+        Storage, Jobs, registry, control, and resolver dependencies into Ingest.
+        Missing required inference targets fail before parsing.  No adaptive T04
+        plan is fabricated, and later accesses reuse the same service.
+        """
         with self._lock:
             if self._ingest_service is None:
                 resolution_config = (
@@ -277,6 +418,13 @@ class Cogni:
 
     @property
     def ingest_manager(self) -> IngestManager:
+        """Return one authorization-aware manager for generated Ingest state.
+
+        CLI administration and artifact facades call this synchronized property.
+        It composes the merged manager with artifact Storage, Jobs, and Control,
+        performs no read/delete by itself, and reuses one instance so all callers
+        share the same component boundaries and thread-safety assumptions.
+        """
         with self._lock:
             if self._ingest_manager is None:
                 self._ingest_manager = IngestManager(
@@ -287,6 +435,13 @@ class Cogni:
             return self._ingest_manager
 
     def ingest_path(self, path: str | Path) -> IngestRunResult:
+        """Ingest one path through the normal registered-source production flow.
+
+        Applications and ``cogni ingest <path>`` call this method.  It creates one
+        fresh execution, delegates registration/parsing/persistence to Ingest, and
+        returns the canonical run result.  Source, job, and artifact side effects
+        are component-owned; typed input/parser/control failures propagate.
+        """
         execution = self.new_execution()
         return self.ingest_service.ingest_path(
             path,
@@ -296,6 +451,13 @@ class Cogni:
         )
 
     def ingest_asset(self, asset_id: str) -> IngestRunResult:
+        """Ingest one existing SourceAsset under a fresh execution context.
+
+        Python and ``--asset`` callers provide a canonical asset ID.  The method
+        authorizes exact registry lookup, delegates one-asset ingestion with stable
+        submitted-input metadata, and returns the component result.  It performs no
+        fallback asset selection and preserves registry/Ingest typed failures.
+        """
         execution = self.new_execution()
         asset = self.source_asset_registry.show_asset(execution, asset_id)
         return self.ingest_service.ingest_assets(
@@ -307,18 +469,47 @@ class Cogni:
         )
 
     def ingest_bundle(self, bundle_id: str) -> IngestRunResult:
+        """Ingest every eligible SourceAsset in one exact bundle identifier.
+
+        Advanced Python and compatibility CLI callers use this ID-based method.
+        It creates a fresh execution and delegates ordering, authorization, job
+        lifecycle, parsing, and persistence entirely to Ingest; no SDK traversal or
+        parser selection algorithm is introduced.
+        """
         return self.ingest_service.ingest_bundle(
             bundle_id, self.source_asset_registry, self.new_execution()
         )
 
     def ingest_bundle_path(self, path: str) -> IngestRunResult:
+        """Resolve one logical bundle path and ingest its canonical identifier.
+
+        Normal ``cogni ingest --bundle`` and Python callers use this convenience
+        method.  It requires an existing exact bundle, creates nothing during
+        resolution, then delegates to ``ingest_bundle``.  Ingest owns deterministic
+        membership order, side effects, authorization, and typed absence failures.
+        """
         bundle = self.doc_bundles.resolve(path, create=False)
         return self.ingest_bundle(bundle.bundle_id)
 
     def new_execution(self) -> ExecutionContext:
+        """Create a fresh operation identity derived from the stable context.
+
+        Every facade action calls this factory before crossing component control
+        boundaries.  Resource owns ID generation and immutable context copying;
+        repeated calls intentionally differ in run/correlation IDs while retaining
+        governance fields.  No persistent state or external I/O is touched.
+        """
         return ExecutionContext.create(self._context)
 
     def describe(self) -> dict[str, Any]:
+        """Return secret-free composition diagnostics without forcing lazy state.
+
+        Applications and ``cogni describe`` use this deterministic JSON-ready view.
+        It reports context, Storage, and effective Ingest settings, and includes
+        catalog information only when the registry was already initialized.  It
+        never starts parsers/models or exposes credentials; concurrent registry
+        inspection is protected by the root lock.
+        """
         result: dict[str, Any] = {
             "context_id": self.context_id,
             "context_type": self.context.context_type,
