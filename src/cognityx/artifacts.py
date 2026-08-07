@@ -3,10 +3,12 @@
 This module exists so SDK and CLI callers can inspect durable document outputs
 without learning Storage keys or physical paths.  ``Artifacts`` first crosses
 the Ingest document-read authorization boundary, maps one canonical public name
-to a fixed manifest entry and logical filename, verifies the manifest URI against
-the configured artifact role, and only then locates or opens the object.  The
-closed mapping is the security boundary: arbitrary URIs, traversal strings, and
-parser-native payloads are never interpreted as artifact names.
+to a fixed manifest entry and logical filename, and verifies the manifest URI
+against the configured artifact role.  Byte reads then return through
+``IngestManager.read_artifact`` so Ingest authorizes the exact document and
+artifact before it opens Storage.  The closed mapping is the security boundary:
+arbitrary URIs, traversal strings, and parser-native payloads are never
+interpreted as artifact names.
 
 The facade is constructed lazily by :class:`cognityx.client.Cogni`.  It keeps no
 mutable cache, performs no parser or model work, and is safe to reuse under the
@@ -69,10 +71,13 @@ class Artifacts:
     ``Cogni`` constructs this facade lazily and CLI/Python callers invoke it with
     a document ID plus one name from :data:`ARTIFACT_NAMES`.  Every operation
     authorizes through ``IngestManager.show_document`` before inspecting the
-    manifest.  The facade has no cache or persistence of its own, preserves the
-    mapping's deterministic order, and never initializes parsers or inference.
-    Authorization, missing objects, and malformed manifests retain their typed
-    component failures; unsupported names fail as ``ValueError``.
+    manifest.  Byte reads additionally delegate to
+    ``IngestManager.read_artifact`` for exact artifact authorization, while
+    metadata-only operations retain their reviewed T10 behavior.  The facade has
+    no cache or persistence of its own, preserves deterministic order, and never
+    initializes parsers or inference.  Authorization, missing objects, and
+    malformed manifests retain typed component failures; unsupported names fail
+    as ``ValueError``.
     """
 
     def __init__(self, owner: "Cogni") -> None:
@@ -105,19 +110,28 @@ class Artifacts:
         )
 
     def read(self, document_id: str, name: str) -> bytes:
-        """Read one settled artifact after authorization and URI verification.
+        """Read bytes only after SDK integrity and Ingest authorization checks.
 
-        CLI and Python callers receive the exact persisted bytes.  The method
-        rejects unsupported names before any path construction, authorizes the
-        document, proves that its manifest URI equals the configured artifact
-        store URI for the fixed filename, and opens that logical key through the
-        public role store.  It never follows caller-provided URIs, exposes local
-        paths, starts inference, or mutates storage; component open failures and
-        clean ``ValueError`` trust-boundary failures propagate to the caller.
+        CLI and Python callers provide a document ID and one exact public name.
+        First, ``_resolve`` validates the closed descriptor, crosses document
+        metadata authorization, and proves the manifest URI equals the configured
+        fixed Storage URI.  Second, this method creates a fresh execution and asks
+        ``IngestManager.read_artifact`` to authorize the exact
+        ``{document_id, artifact}`` resource before Ingest opens and returns the
+        bytes.  These ordered checks protect different trust boundaries: SDK
+        rejects forged references, while Ingest owns byte-read policy and I/O.
+
+        The operation is read-only and idempotent for immutable artifacts, keeps
+        no cache or request state, and shares the owner's component concurrency
+        assumptions.  It never follows caller URIs, falls back to direct Storage,
+        exposes paths, or starts parsing/inference.  Unsupported or malformed
+        references raise ``ValueError``; authorization, absence, and Storage
+        failures propagate from their owning component without returning bytes.
         """
-        _descriptor, key, _uri = self._resolve(document_id, name)
-        with self._owner.storage.for_role("artifact").open(key) as source:
-            return source.read()
+        self._resolve(document_id, name)
+        return self._owner.ingest_manager.read_artifact(
+            self._owner.new_execution(), document_id, name
+        )
 
     def locate(self, document_id: str, name: str) -> dict[str, object]:
         """Return safe logical location metadata for one settled artifact.

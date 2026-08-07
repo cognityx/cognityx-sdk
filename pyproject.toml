@@ -12,7 +12,7 @@ license = { text = "Proprietary" }
 dependencies = [
   "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@79f89a965f46300be6a892d4371d44e6c288fd0c",
   "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@519dfc975aeed789d62b589b551476aa67186540",
-  "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@8888941c9f0c337b4fc03d8a5fe52efd85b6267a",
+  "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@56716dbdebde9bd92069cbd415aa7f657d55d9dd",
   "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@e4312fd461df97ffcefc54352b9b76f1dd6e6860",
 ]
 
@@ -30,7 +30,7 @@ override-dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "mkdocs-material>=9"]
 inference = ["cognityx-inference @ git+https://github.com/cognityx/cognityx-inference.git@14710786f5466d28c0e5690f4acf75e72f6d4e1d"]
-rich-ingest = ["cognityx-ingest[pymupdf,docling] @ git+https://github.com/cognityx/cognityx-ingest.git@8888941c9f0c337b4fc03d8a5fe52efd85b6267a"]
+rich-ingest = ["cognityx-ingest[pymupdf,docling] @ git+https://github.com/cognityx/cognityx-ingest.git@56716dbdebde9bd92069cbd415aa7f657d55d9dd"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
