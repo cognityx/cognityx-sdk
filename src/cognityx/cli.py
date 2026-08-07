@@ -1,4 +1,12 @@
-"""Unified application-facing Cognityx command line interface."""
+"""Route the primary ``cogni`` CLI through the shared Python composition root.
+
+The command line exists as a thin JSON-oriented adapter over ``Cogni`` facades
+and merged component APIs.  Argument parsing accepts established compatibility
+aliases and explicit invocation overrides, while execution keeps configuration
+as the normal control plane.  Artifact and provenance commands use the same
+authorization-preserving Python surfaces as applications and never require or
+emit a physical Storage path.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +25,7 @@ from cognityx_ingest.control import IngestAuthorizationError
 from cognityx_ingest.models import SourceAssetBatchResult
 from cognityx_storage import StorageConfig, StorageRuntime
 
+from cognityx.artifacts import ARTIFACT_NAMES
 from cognityx.client import Cogni
 from cognityx.ingest_config import load_ingest_configuration
 from cognityx.serialization import (
@@ -37,6 +46,14 @@ _DURATION = re.compile(r"^([1-9][0-9]*)([hd])$")
 
 
 def _common_parser() -> argparse.ArgumentParser:
+    """Build shared invocation overrides without loading application state.
+
+    ``_parser`` attaches this parent to commands that need Resource, Storage, or
+    Ingest settings.  It records typed arguments and compatibility flags only;
+    precedence is applied later by ``_load``/configuration resolution.  Creation
+    is deterministic, side-effect free, thread-local to one CLI invocation, and
+    leaves argparse responsible for syntax failures.
+    """
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--context", dest="context_file", type=Path)
     parser.add_argument("--context-type", choices=("user", "system"))
@@ -72,6 +89,14 @@ def _common_parser() -> argparse.ArgumentParser:
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Build the deterministic command tree without constructing components.
+
+    ``main`` calls this once per invocation.  The parser defines the stable
+    singular commands, compatibility aliases, local configuration overrides, and
+    the closed settled-artifact vocabulary.  Construction performs no Storage,
+    parser, model, network, or persistence work; argparse owns typed syntax
+    failures and help ordering remains deterministic.
+    """
     common = _common_parser()
     parser = argparse.ArgumentParser(
         prog="cogni",
@@ -182,14 +207,20 @@ def _parser() -> argparse.ArgumentParser:
     artifact_commands = artifacts.add_subparsers(dest="action", required=True)
     read = artifact_commands.add_parser("read", parents=[common])
     read.add_argument("document_id")
-    read.add_argument(
-        "name", choices=("document", "evidence", "provenance", "manifest")
-    )
+    read.add_argument("name", choices=ARTIFACT_NAMES)
     locate = artifact_commands.add_parser("locate", parents=[common])
     locate.add_argument("document_id")
-    locate.add_argument(
-        "name", choices=("document", "evidence", "provenance")
+    locate.add_argument("name", choices=ARTIFACT_NAMES)
+    available = artifact_commands.add_parser("available", parents=[common])
+    available.add_argument("document_id")
+
+    provenance = commands.add_parser(
+        "provenance", help="Resolve a persisted provenance address."
     )
+    provenance_commands = provenance.add_subparsers(dest="action", required=True)
+    resolve = provenance_commands.add_parser("resolve", parents=[common])
+    resolve.add_argument("document_id")
+    resolve.add_argument("address_id")
 
     cleanup = commands.add_parser("cleanup", help="Plan or execute physical Blob cleanup.")
     cleanup_commands = cleanup.add_subparsers(dest="action", required=True)
@@ -210,6 +241,13 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _scopes(values: list[str]) -> dict[str, str]:
+    """Parse repeatable ``KEY=VALUE`` context scopes into one override mapping.
+
+    ``_load`` calls this for CLI-provided Resource scope entries.  Input order is
+    processed deterministically and a later duplicate key replaces an earlier CLI
+    value, matching ordinary argument override behavior.  Empty or malformed
+    entries raise ``ValueError`` before context construction; no I/O occurs.
+    """
     scopes: dict[str, str] = {}
     for value in values:
         if "=" not in value:
@@ -222,6 +260,13 @@ def _scopes(values: list[str]) -> dict[str, str]:
 
 
 def _duration(value: str) -> timedelta:
+    """Convert one positive hour/day CLI duration to ``timedelta``.
+
+    Cleanup dispatch uses this bounded parser for values such as ``1h`` or ``7d``.
+    The anchored expression rejects zero, signs, fractions, and unknown units so
+    retention planning receives an unambiguous interval.  It is pure and raises
+    ``ValueError`` without touching clocks or Storage.
+    """
     match = _DURATION.fullmatch(value)
     if not match:
         raise ValueError("--older-than must be a positive duration such as 1h or 7d.")
@@ -230,6 +275,14 @@ def _duration(value: str) -> timedelta:
 
 
 def _load(args: argparse.Namespace) -> Cogni:
+    """Construct the shared SDK root from parsed command invocation inputs.
+
+    All component-backed commands call this helper.  It translates context scope
+    overrides, preserves the deprecated local Storage-root adapter with a warning,
+    and delegates normal Resource, Storage, and Ingest layering to ``Cogni.load``.
+    It does not execute the requested action or eagerly initialize parsers/models;
+    incompatible Storage inputs and component loader failures propagate cleanly.
+    """
     overrides = {
         name: getattr(args, name)
         for name in (
@@ -272,6 +325,14 @@ def _load(args: argparse.Namespace) -> Cogni:
 
 
 def _resolved_ingest_configuration(args: argparse.Namespace) -> dict[str, object]:
+    """Resolve and serialize local effective Ingest settings for inspection.
+
+    ``ingest-config show`` and ``validate`` call this before loading ``Cogni``.
+    Existing parser/inference flags are applied as final invocation overrides to
+    the same layered configuration function used by normal ingest.  The helper
+    performs only local reads and strict validation: it starts no parser/model,
+    makes no network call, persists nothing, and returns secret-free JSON data.
+    """
     selected = load_ingest_configuration(
         parser_policy=getattr(args, "parser_policy", None),
         parser_backends=getattr(args, "parser_backend", None),
@@ -283,6 +344,16 @@ def _resolved_ingest_configuration(args: argparse.Namespace) -> dict[str, object
 
 
 def _execute(args: argparse.Namespace) -> Any:
+    """Dispatch one parsed command to the established SDK or component facade.
+
+    ``main`` supplies argparse-validated input.  This function normalizes only
+    documented compatibility command aliases, loads one ``Cogni`` root when the
+    command needs components, and delegates each action without reimplementing
+    domain algorithms.  Config inspection remains local-only; artifact and
+    provenance reads cross document authorization and deterministic integrity
+    checks.  Returned values are JSON-ready or canonical serializers, while
+    typed failures are translated centrally by ``main``.
+    """
     compatibility = {
         "assets": "asset",
         "sources": "asset",
@@ -410,11 +481,16 @@ def _execute(args: argparse.Namespace) -> Any:
         return {"deleted_document_id": args.document_id}
     if args.group == "artifact":
         if args.action == "read":
-            payload = cogni.ingest_manager.read_artifact(
-                cogni.new_execution(), args.document_id, args.name
-            )
+            payload = cogni.artifacts.read(args.document_id, args.name)
             return _artifact(args.name, payload)
-        return cogni.artifacts.locate(args.document_id, args.name)
+        if args.action == "locate":
+            return cogni.artifacts.locate(args.document_id, args.name)
+        return {
+            "document_id": args.document_id,
+            "artifacts": list(cogni.artifacts.available(args.document_id)),
+        }
+    if args.group == "provenance":
+        return cogni.provenance.resolve(args.document_id, args.address_id)
     if args.group == "cleanup":
         if not 1 <= args.batch_size <= 500:
             raise ValueError("--batch-size must be between 1 and 500.")
@@ -439,10 +515,25 @@ def _execute(args: argparse.Namespace) -> Any:
 
 
 class _ConfirmationRequired(ValueError):
+    """Signal a safe mutating command that lacked explicit user confirmation.
+
+    Delete/cleanup dispatch raises this internal typed failure before performing
+    the side effect.  ``main`` maps it to exit code 2 and a bounded diagnostic;
+    callers do not construct it directly and it carries no mutable state.
+    """
+
     pass
 
 
 def _watch_job(cogni: Cogni, job_id: str, *, owner_id: str, after: int) -> None:
+    """Replay ordered job events until the owner-scoped job becomes terminal.
+
+    ``cogni job watch`` calls this synchronous polling loop.  Each cycle creates a
+    fresh execution, requests events strictly after the last printed sequence,
+    emits one sorted JSON object per event, checks authoritative job state, and
+    sleeps briefly only while work remains.  Jobs owns durable ordering and typed
+    authorization/absence failures; the helper performs no parsing or mutation.
+    """
     terminal = {"completed", "failed", "cancelled", "interrupted"}
     while True:
         execution = cogni.new_execution()
@@ -461,6 +552,13 @@ def _watch_job(cogni: Cogni, job_id: str, *, owner_id: str, after: int) -> None:
 
 
 def _artifact(name: str, payload: bytes) -> dict[str, Any]:
+    """Encode exact artifact bytes as stable JSON-safe CLI output.
+
+    Artifact read dispatch calls this after authorization and integrity checks.
+    UTF-8 payloads remain readable text; arbitrary binary bytes use deterministic
+    base64, with the selected encoding stated explicitly.  The pure conversion
+    does not inspect schemas, alter bytes, expose paths, or perform persistence.
+    """
     try:
         return {"artifact": name, "encoding": "utf-8", "content": payload.decode("utf-8")}
     except UnicodeDecodeError:
@@ -472,6 +570,15 @@ def _artifact(name: str, payload: bytes) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run one ``cogni`` command and translate typed outcomes to exit codes.
+
+    Console entry points and tests call this function with process or explicit
+    arguments.  It builds/parses the command tree, delegates once through
+    ``_execute``, prints successful JSON deterministically, and maps confirmation,
+    validation, absence, authorization, and operational failures to documented
+    codes.  ``--debug`` alone re-raises unexpected failures; no global mutable
+    state is retained between invocations.
+    """
     parser = _parser()
     args = parser.parse_args(argv)
     try:

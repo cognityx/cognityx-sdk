@@ -120,6 +120,15 @@ def test_cli_override_and_show_report_effective_sources(
     assert shown["sources"]["parser_policy"] == "cli"
     assert shown["sources"]["parser_backends"] == "cli"
     assert "config" not in shown["ingest"]["inference"]
+    assert shown["ingest"]["routing"] == {
+        "adaptive_mode": "deterministic",
+        "classification": "planning-only",
+        "execution_active": False,
+        "execution_control": "parser_policy",
+    }
+    assert shown["sources"]["routing.adaptive_mode"] == (
+        "derived:ingest.parser_policy"
+    )
 
 
 @pytest.mark.parametrize(
@@ -216,3 +225,45 @@ def test_validate_reports_valid_configuration(
 
     assert payload["valid"] is True
     assert payload["ingest"]["parser_policy"] == "compare"
+
+
+@pytest.mark.parametrize(
+    "content,match",
+    (
+        ('[ingest]\nrouting_mode = "deterministic"\n', "routing_mode"),
+        ('[ingest.routing]\nmode = "deterministic"\n', "routing"),
+        ('[ingest]\nparser_backends = ["basic", "basic"]\n', "duplicates"),
+        ('[ingest]\nparser_backends = []\n', "non-empty"),
+        ('[secrets]\ntoken = "must-not-appear"\n', "secrets"),
+    ),
+)
+def test_unknown_no_op_and_invalid_settings_fail_closed(
+    tmp_path: Path, content: str, match: str
+) -> None:
+    config = tmp_path / ".cognityx/ingest.toml"
+    config.parent.mkdir(parents=True)
+    config.write_text(content, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=match):
+        load_ingest_configuration(cwd=tmp_path)
+
+
+def test_config_show_is_secret_free_and_validation_starts_no_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_config(tmp_path / ".cognityx/ingest.toml", policy="fixed")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user-config"))
+    monkeypatch.setenv("COGNITYX_API_TOKEN", "top-secret-value")
+    monkeypatch.setattr(
+        "cognityx.client.Cogni.load",
+        lambda **_kwargs: pytest.fail("configuration validation loaded Cogni"),
+    )
+
+    assert main(["ingest-config", "validate"]) == 0
+    output = capsys.readouterr().out
+
+    assert "top-secret-value" not in output
+    assert json.loads(output)["valid"] is True

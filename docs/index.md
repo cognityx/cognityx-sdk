@@ -15,6 +15,8 @@ Resource context + Ingest + Storage + Jobs + optional Inference
               ↓
 structured documents and page evidence
               ↓
+settled content, source links, and evidence addresses
+              ↓
            DataForge
 ```
 
@@ -29,10 +31,18 @@ cogni ingest report.pdf
 cogni ingest --bundle research/reports
 cogni job status <job-id>
 cogni document show <document-id>
+cogni artifact read <document-id> canonical-content
+cogni provenance resolve <document-id> <address-id>
 ```
 
 No storage path is required. The configured Storage Runtime chooses the
 physical provider and logical roles.
+
+Canonical content is the parser-neutral document form used by later Cognityx
+steps. The Source Graph is a compact map from that content back to its source
+structure. A provenance address is a stable identifier for an exact target in
+that map. Together they let DataForge and audit tools check support without
+reopening the original PDF or parser-specific bytes.
 
 The project records its preferred document readers once in
 `.cognityx/ingest.toml`. After that, the normal command remains:
@@ -44,6 +54,9 @@ cogni ingest document.pdf
 Ordinary users do not select a parser or model on each run. An operator may
 enable Docling, PyMuPDF, or bounded Cognityx Inference resolution through the
 configuration. Inference proposals never replace observed PDF facts.
+
+`cogni` is the primary user surface. The component-level `cognityx-ingest`
+command remains only for compatibility with older scripts.
 
 - [Preferred CLI](cli.md)
 - [Python API](api.md)
