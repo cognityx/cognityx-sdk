@@ -1,5 +1,56 @@
 # Unified `cogni` CLI
 
+The `cogni` command is the normal front door to Cognityx components. For
+Ingest, it registers original files, starts work, follows durable jobs, and reads
+component-owned results without exposing physical Storage paths.
+
+## CLI and Object Map
+
+```text
+file or folder
+  -> asset / bundle       SourceAsset and DocBundle registration
+  -> ingest              IngestRun plus durable Job
+  -> document            generated document metadata
+  -> artifact            one of nine settled document artifacts
+  -> provenance          deterministic evidence-address resolution
+  -> DataForge           downstream Q/A and Knowledge Unit work
+```
+
+The main Ingest-facing commands are:
+
+```text
+cogni asset      add | list | show | locate | delete | deleted
+cogni bundle     create | list | locate | delete | deleted
+cogni ingest     <path> | --asset <asset-id> | --bundle <bundle-path>
+cogni job        list | status | show | events | watch | cancel
+cogni run        list | show | locate | delete
+cogni document   list | show | locate | delete
+cogni artifact   available | read | locate
+cogni provenance resolve
+cogni cleanup    blobs
+```
+
+The Python composition root follows the same object map:
+
+```python
+cogni.assets
+cogni.doc_bundles
+cogni.ingest_path(...)       # also ingest_asset / ingest_bundle_path
+cogni.ingest_manager         # jobs, runs, and documents
+cogni.runs
+cogni.documents
+cogni.artifacts.available(...)  # also read / locate
+cogni.provenance.resolve(...)
+cogni.cleanup
+```
+
+Ingest owns the schemas and lifecycle rules behind these surfaces. Start with
+the [Ingest schema and object map](/ingest/schema-map/), then use the detailed
+[output contract](/ingest/contract/), [canonical content
+model](/ingest/canonical-content/), and [Source Graph and provenance address
+model](/ingest/source-graph-and-provenance-addresses/). Those pages are
+authoritative for artifact fields; this page is the command guide.
+
 ## Organize Original Files
 
 A SourceAsset is a recorded original file. A DocBundle is a named collection,
