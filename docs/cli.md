@@ -16,9 +16,10 @@ file or folder
   -> DataForge           downstream Q/A and Knowledge Unit work
 ```
 
-The main Ingest-facing commands are:
+The main commands are:
 
 ```text
+cogni storage    locate <storage-uri>
 cogni asset      add | list | show | locate | delete | deleted
 cogni bundle     create | list | locate | delete | deleted
 cogni ingest     <path> | --asset <asset-id> | --bundle <bundle-path>
@@ -206,6 +207,28 @@ arbitrary Storage keys are not part of this surface.
 `artifact read` is unchanged and still returns the artifact payload; `locate` only
 returns metadata.
 
+### Locate Any Storage URI
+
+Use `storage locate` when another Cognityx command returns a logical
+`storage://` address and you need to ask the configured Storage Runtime where
+that object is and whether it currently exists:
+
+```bash
+cogni storage locate \
+  storage://local-main/models/adapters/example-adapter/1/adapter-manifest.json
+```
+
+The successful JSON is the canonical Storage location record. It includes the
+URI, backend, profile, inferred role, existence, size, and a local path when
+Storage can safely resolve one. A missing object is still a successful lookup
+with `"exists": false`. Filesystem profiles may return `local_path`; remote
+profiles return `null`. Malformed URIs and unknown profiles fail with a non-zero
+exit code.
+
+The SDK does not parse the URI, choose a backend, inspect an object, infer a
+role, or build a physical path. It loads the normal `Cogni` application root and
+delegates all of those decisions to Storage.
+
 `provenance resolve` reads the document's own Source Graph and address catalog,
 validates them, and resolves one exact ID. Its status is one of `exact`,
 `redirected`, `ambiguous`, `obsolete`, `forbidden`, or `unresolved`. A forbidden
@@ -262,6 +285,8 @@ An operator may select a configuration explicitly:
 
 ```bash
 cogni ingest report.pdf --storage-config .cognityx/storage.toml
+cogni storage locate storage://local-main/artifacts/report.json \
+  --storage-config .cognityx/storage.toml
 ```
 
 Parser flags remain advanced, one-run overrides. Explicit flags take priority

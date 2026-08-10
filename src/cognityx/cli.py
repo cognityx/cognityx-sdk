@@ -104,6 +104,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="group", required=True)
 
+    storage = commands.add_parser(
+        "storage", help="Inspect configured Storage objects."
+    )
+    storage_commands = storage.add_subparsers(dest="action", required=True)
+    locate_storage = storage_commands.add_parser("locate", parents=[common])
+    locate_storage.add_argument("storage_uri", metavar="storage-uri")
+
     assets = commands.add_parser(
         "asset", aliases=("assets", "sources"), help="Manage SourceAssets."
     )
@@ -377,6 +384,8 @@ def _execute(args: argparse.Namespace) -> Any:
             return {"valid": True, **selected}
         return selected
     cogni = _load(args)
+    if args.group == "storage":
+        return cogni.storage.locate(args.storage_uri).to_dict()
     if args.group == "asset":
         if args.action == "add":
             result = cogni.assets.add(
