@@ -25,6 +25,7 @@ cogni job status <job-id>
 cogni document show <document-id>
 cogni artifact read <document-id> source-graph
 cogni provenance resolve <document-id> <address-id>
+cogni storage locate storage://local-main/artifacts/example/report.json
 ```
 
 Projects choose their document readers once in `.cognityx/ingest.toml`; users
