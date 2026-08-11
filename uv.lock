@@ -15,7 +15,7 @@ resolution-markers = [
 [manifest]
 overrides = [
     { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=089b7e461e99083216af862d21503bcc1b9bc0dd" },
-    { name = "cognityx-inference", git = "https://github.com/cognityx/cognityx-inference.git?rev=14710786f5466d28c0e5690f4acf75e72f6d4e1d" },
+    { name = "cognityx-inference", git = "https://github.com/cognityx/cognityx-inference.git?rev=061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7" },
     { name = "cognityx-jobs", git = "https://github.com/cognityx/cognityx-jobs.git?rev=e4312fd461df97ffcefc54352b9b76f1dd6e6860" },
     { name = "cognityx-resource", git = "https://github.com/cognityx/cognityx-resource.git?rev=b23220b69fcb182e681cf13276c37474666c9bd2" },
     { name = "cognityx-storage", git = "https://github.com/cognityx/cognityx-storage.git?rev=4b47b898b2fb465263d8c44350d4241f52b13c90" },
@@ -553,7 +553,7 @@ rich-ingest = [
 [package.metadata]
 requires-dist = [
     { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=089b7e461e99083216af862d21503bcc1b9bc0dd" },
-    { name = "cognityx-inference", marker = "extra == 'inference'", git = "https://github.com/cognityx/cognityx-inference.git?rev=14710786f5466d28c0e5690f4acf75e72f6d4e1d" },
+    { name = "cognityx-inference", marker = "extra == 'inference'", git = "https://github.com/cognityx/cognityx-inference.git?rev=061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7" },
     { name = "cognityx-ingest", git = "https://github.com/cognityx/cognityx-ingest.git?rev=56716dbdebde9bd92069cbd415aa7f657d55d9dd" },
     { name = "cognityx-ingest", extras = ["pymupdf", "docling"], marker = "extra == 'rich-ingest'", git = "https://github.com/cognityx/cognityx-ingest.git?rev=56716dbdebde9bd92069cbd415aa7f657d55d9dd" },
     { name = "cognityx-jobs", git = "https://github.com/cognityx/cognityx-jobs.git?rev=e4312fd461df97ffcefc54352b9b76f1dd6e6860" },
@@ -578,11 +578,12 @@ dependencies = [
 [[package]]
 name = "cognityx-inference"
 version = "0.1.0"
-source = { git = "https://github.com/cognityx/cognityx-inference.git?rev=14710786f5466d28c0e5690f4acf75e72f6d4e1d#14710786f5466d28c0e5690f4acf75e72f6d4e1d" }
+source = { git = "https://github.com/cognityx/cognityx-inference.git?rev=061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7#061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7" }
 dependencies = [
     { name = "accelerate" },
     { name = "bitsandbytes" },
     { name = "cognityx-jobs" },
+    { name = "cognityx-observability" },
     { name = "cognityx-storage" },
     { name = "datasets" },
     { name = "evaluate" },
