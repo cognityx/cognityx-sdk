@@ -17,7 +17,7 @@ EXPECTED = {
     "cognityx-storage": "4b47b898b2fb465263d8c44350d4241f52b13c90",
     "cognityx-ingest": "56716dbdebde9bd92069cbd415aa7f657d55d9dd",
     "cognityx-jobs": "e4312fd461df97ffcefc54352b9b76f1dd6e6860",
-    "cognityx-experiments": "3f8b1c5192af80d4e4d91c26eed84f9c3b99c5a6",
+    "cognityx-experiments": "5bf4f50bd3a93a651ecf5c9d35d70666cec02bee",
 }
 
 
