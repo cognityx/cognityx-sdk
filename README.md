@@ -39,6 +39,24 @@ Storage inputs, Inference service, budget, and private results journal without
 loading a model. The SDK forwards this command unchanged; it does not copy the
 checks.
 
+Install a production research environment explicitly:
+
+```bash
+uv sync --extra inference --extra research-execution --extra research-tracking
+```
+
+`research-execution` requests Training's owner-defined `[training]` extra and
+the exact Training and Evaluator revisions used by the composition. The
+existing `inference` extra supplies the exact Inference service revision. This
+is the difference between a component package being importable and being able
+to perform its selected operation. The optional `research-tracking` preset adds
+the component-owned MLflow extras. Storage remains authoritative; MLflow is
+only a searchable index.
+
+Local vLLM remains in its separately certified Inference environment because
+its CUDA toolchain is intentionally isolated. The research preset installs the
+Inference service and no-model API dependencies, not a second vLLM copy.
+
 Projects choose their document readers once in `.cognityx/ingest.toml`; users
 do not repeat parser options on every command:
 

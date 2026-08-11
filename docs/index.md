@@ -33,6 +33,13 @@ their declared steps, reports durable status, and assembles existing research
 material. The SDK does not copy the experiment compiler, scheduler, evidence
 rules, or publication logic.
 
+For a production research environment, install the `research-execution` extra.
+It requests each owning component's execution dependencies, including
+Training's complete LoRA/QLoRA stack. Add `research-tracking` when the frozen
+profile selects MLflow. The preflight then checks Training runtime capability
+and its separate configuration/data dry run before preregistration. Neither
+probe loads a model or creates scientific evidence.
+
 ## Start Here
 
 ```bash
