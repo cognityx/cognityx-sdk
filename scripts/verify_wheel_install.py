@@ -13,10 +13,11 @@ from zipfile import ZipFile
 
 VERSION = "0.2.0"
 EXPECTED = {
-    "cognityx-resource": "79f89a965f46300be6a892d4371d44e6c288fd0c",
-    "cognityx-storage": "519dfc975aeed789d62b589b551476aa67186540",
+    "cognityx-resource": "b23220b69fcb182e681cf13276c37474666c9bd2",
+    "cognityx-storage": "4b47b898b2fb465263d8c44350d4241f52b13c90",
     "cognityx-ingest": "56716dbdebde9bd92069cbd415aa7f657d55d9dd",
     "cognityx-jobs": "e4312fd461df97ffcefc54352b9b76f1dd6e6860",
+    "cognityx-experiments": "437c3f163b322f9ec42807d547c48e43b17f980e",
 }
 
 

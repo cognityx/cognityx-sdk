@@ -14,6 +14,7 @@ file or folder
   -> artifact            one of nine settled document artifacts
   -> provenance          deterministic evidence-address resolution
   -> DataForge           downstream Q/A and Knowledge Unit work
+  -> experiment          frozen research plans and accumulated evidence
 ```
 
 The main commands are:
@@ -29,6 +30,8 @@ cogni document   list | show | locate | delete
 cogni artifact   available | read | locate
 cogni provenance resolve
 cogni cleanup    blobs
+cogni experiment validate | plan | show-plan | run | status
+cogni experiment research-summary | paper-material
 ```
 
 The Python composition root follows the same object map:
@@ -44,6 +47,38 @@ cogni.artifacts.available(...)  # also read / locate
 cogni.provenance.resolve(...)
 cogni.cleanup
 ```
+
+Research commands deliberately remain at the command-line boundary and
+delegate to `cognityx-experiments`; they do not add another copy of experiment
+logic to the SDK application root.
+
+## Plan And Review Experiments
+
+A research plan is a typed file that freezes the question, treatments, metrics,
+seeds, and stopping rule before outcomes are seen. This is called a
+`ResearchSpec` in the component contract.
+
+```bash
+cogni experiment validate research.yaml
+cogni experiment plan research.yaml
+cogni experiment show-plan research.yaml
+cogni experiment run research.yaml --resume
+cogni experiment status <execution-id>
+```
+
+Completed runs automatically create conservative findings, short factual
+notes, tables, figure-ready data, and a cumulative research journal. The
+aggregation commands read those immutable finding records:
+
+```bash
+cogni experiment research-summary POLICY-H1 \
+  --results-repo ./cognityx-experiment-results
+cogni experiment paper-material POLICY-RQ1 \
+  --results-repo ./cognityx-experiment-results
+```
+
+These commands assemble evidence for human review. They do not claim novelty,
+support for a hypothesis, or generate a final paper.
 
 Ingest owns the schemas and lifecycle rules behind these surfaces. Start with
 the [Ingest schema and object map](/ingest/schema-map/), then use the detailed
