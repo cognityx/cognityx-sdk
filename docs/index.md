@@ -28,9 +28,10 @@ Experiments plans, evidence, and research material
 existing APIs so applications do not need to assemble them manually.
 
 The `cogni experiment` command is a thin door into Cognityx Experiments. It
-validates frozen research plans, shows or runs their declared steps, reports
-durable status, and assembles existing research material. The SDK does not copy
-the experiment compiler, scheduler, evidence rules, or publication logic.
+validates frozen research plans, checks production readiness, shows or runs
+their declared steps, reports durable status, and assembles existing research
+material. The SDK does not copy the experiment compiler, scheduler, evidence
+rules, or publication logic.
 
 ## Start Here
 
@@ -44,6 +45,7 @@ cogni artifact read <document-id> canonical-content
 cogni provenance resolve <document-id> <address-id>
 cogni experiment validate research.yaml
 cogni experiment plan research.yaml
+cogni experiment preflight research.yaml --results-repo ./experiment-results
 cogni experiment status <execution-id>
 ```
 

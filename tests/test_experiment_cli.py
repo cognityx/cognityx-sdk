@@ -23,12 +23,37 @@ from cognityx.cli import main
         (
             [
                 "experiment",
+                "preflight",
+                "research.yaml",
+                "--storage-config",
+                "storage.toml",
+                "--results-repo",
+                "results",
+                "--push-results",
+            ],
+            [
+                "preflight",
+                "research.yaml",
+                "--storage-root",
+                "experiment-storage",
+                "--storage-config",
+                "storage.toml",
+                "--results-repo",
+                "results",
+                "--push-results",
+            ],
+        ),
+        (
+            [
+                "experiment",
                 "run",
                 "research.yaml",
                 "--resume",
                 "--dry-run",
                 "--storage-root",
                 "research-storage",
+                "--results-repo",
+                "results",
             ],
             [
                 "run",
@@ -37,6 +62,8 @@ from cognityx.cli import main
                 "--dry-run",
                 "--storage-root",
                 "research-storage",
+                "--results-repo",
+                "results",
             ],
         ),
         (

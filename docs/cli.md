@@ -30,7 +30,7 @@ cogni document   list | show | locate | delete
 cogni artifact   available | read | locate
 cogni provenance resolve
 cogni cleanup    blobs
-cogni experiment validate | plan | show-plan | run | status
+cogni experiment validate | plan | show-plan | preflight | run | status
 cogni experiment research-summary | paper-material
 ```
 
@@ -62,9 +62,18 @@ seeds, and stopping rule before outcomes are seen. This is called a
 cogni experiment validate research.yaml
 cogni experiment plan research.yaml
 cogni experiment show-plan research.yaml
-cogni experiment run research.yaml --resume
+cogni experiment preflight research.yaml \
+  --storage-config storage.toml \
+  --results-repo ./cognityx-experiment-results
+cogni experiment run research.yaml \
+  --storage-config storage.toml \
+  --results-repo ./cognityx-experiment-results --push-results
 cogni experiment status <execution-id>
 ```
+
+Preflight is read-mostly and does not load a model. It returns a non-zero status
+when a required production boundary is unavailable or when the results journal
+is not private and clean. A normal run performs the same check automatically.
 
 Completed runs automatically create conservative findings, short factual
 notes, tables, figure-ready data, and a cumulative research journal. The

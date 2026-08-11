@@ -259,6 +259,18 @@ def _parser() -> argparse.ArgumentParser:
     run_experiment.add_argument(
         "--storage-root", type=Path, default=Path("experiment-storage")
     )
+    run_experiment.add_argument("--storage-config", type=Path)
+    run_experiment.add_argument("--results-repo", type=Path)
+    run_experiment.add_argument("--push-results", action="store_true")
+    experiment_preflight = experiment_commands.add_parser("preflight")
+    experiment_preflight.add_argument("research_yaml", type=Path)
+    experiment_preflight.add_argument("--execution-id")
+    experiment_preflight.add_argument(
+        "--storage-root", type=Path, default=Path("experiment-storage")
+    )
+    experiment_preflight.add_argument("--storage-config", type=Path)
+    experiment_preflight.add_argument("--results-repo", type=Path, required=True)
+    experiment_preflight.add_argument("--push-results", action="store_true")
     experiment_status = experiment_commands.add_parser("status")
     experiment_status.add_argument("execution_id")
     experiment_status.add_argument(
@@ -557,7 +569,7 @@ def _execute_experiment(args: argparse.Namespace) -> None:
     from cognityx_experiments.cli import main as experiments_main
 
     forwarded = [str(args.action)]
-    if args.action in {"validate", "plan", "show-plan", "run"}:
+    if args.action in {"validate", "plan", "show-plan", "preflight", "run"}:
         forwarded.append(str(args.research_yaml))
         if args.execution_id:
             forwarded.extend(("--execution-id", str(args.execution_id)))
@@ -566,7 +578,14 @@ def _execute_experiment(args: argparse.Namespace) -> None:
                 forwarded.append("--resume")
             if args.dry_run:
                 forwarded.append("--dry-run")
+        if args.action in {"preflight", "run"}:
             forwarded.extend(("--storage-root", str(args.storage_root)))
+            if args.storage_config:
+                forwarded.extend(("--storage-config", str(args.storage_config)))
+            if args.results_repo:
+                forwarded.extend(("--results-repo", str(args.results_repo)))
+            if args.push_results:
+                forwarded.append("--push-results")
     elif args.action == "status":
         forwarded.extend(
             (str(args.execution_id), "--storage-root", str(args.storage_root))
