@@ -18,10 +18,20 @@ structured documents and page evidence
 settled content, source links, and evidence addresses
               ↓
            DataForge
+              ↓
+Training + Inference + Evaluator
+              ↓
+Experiments plans, evidence, and research material
 ```
 
 `Cogni` does not replace the component services. It loads and connects their
 existing APIs so applications do not need to assemble them manually.
+
+The `cogni experiment` command is a thin door into Cognityx Experiments. It
+validates frozen research plans, checks production readiness, shows or runs
+their declared steps, reports durable status, and assembles existing research
+material. The SDK does not copy the experiment compiler, scheduler, evidence
+rules, or publication logic.
 
 ## Start Here
 
@@ -33,6 +43,10 @@ cogni job status <job-id>
 cogni document show <document-id>
 cogni artifact read <document-id> canonical-content
 cogni provenance resolve <document-id> <address-id>
+cogni experiment validate research.yaml
+cogni experiment plan research.yaml
+cogni experiment preflight research.yaml --results-repo ./experiment-results
+cogni experiment status <execution-id>
 ```
 
 No storage path is required. The configured Storage Runtime chooses the

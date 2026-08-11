@@ -14,6 +14,8 @@ user or application
 Resource · Ingest · Storage · Jobs · optional Inference
         ↓
      DataForge
+        ↓
+Training · Inference · Evaluator · Experiments
 ```
 
 ```bash
@@ -27,6 +29,15 @@ cogni artifact read <document-id> source-graph
 cogni provenance resolve <document-id> <address-id>
 cogni storage locate storage://local-main/artifacts/example/report.json
 ```
+
+The `cogni experiment` group validates and runs frozen research plans and
+assembles accumulated evidence. Cognityx Experiments still owns the compiler,
+scheduler, findings, and publication rules; the SDK only delegates.
+
+Before a real run, `cogni experiment preflight` checks the frozen software,
+Storage inputs, Inference service, budget, and private results journal without
+loading a model. The SDK forwards this command unchanged; it does not copy the
+checks.
 
 Projects choose their document readers once in `.cognityx/ingest.toml`; users
 do not repeat parser options on every command:

@@ -242,6 +242,45 @@ def _parser() -> argparse.ArgumentParser:
     blobs.add_argument("--older-than", default="7d", metavar="DURATION")
     blobs.add_argument("--batch-size", type=int, default=100)
 
+    experiment = commands.add_parser(
+        "experiment",
+        help="Validate, run, and summarize frozen research plans.",
+    )
+    experiment_commands = experiment.add_subparsers(dest="action", required=True)
+    for name in ("validate", "plan", "show-plan"):
+        leaf = experiment_commands.add_parser(name)
+        leaf.add_argument("research_yaml", type=Path)
+        leaf.add_argument("--execution-id")
+    run_experiment = experiment_commands.add_parser("run")
+    run_experiment.add_argument("research_yaml", type=Path)
+    run_experiment.add_argument("--execution-id")
+    run_experiment.add_argument("--resume", action="store_true")
+    run_experiment.add_argument("--dry-run", action="store_true")
+    run_experiment.add_argument(
+        "--storage-root", type=Path, default=Path("experiment-storage")
+    )
+    run_experiment.add_argument("--storage-config", type=Path)
+    run_experiment.add_argument("--results-repo", type=Path)
+    run_experiment.add_argument("--push-results", action="store_true")
+    experiment_preflight = experiment_commands.add_parser("preflight")
+    experiment_preflight.add_argument("research_yaml", type=Path)
+    experiment_preflight.add_argument("--execution-id")
+    experiment_preflight.add_argument(
+        "--storage-root", type=Path, default=Path("experiment-storage")
+    )
+    experiment_preflight.add_argument("--storage-config", type=Path)
+    experiment_preflight.add_argument("--results-repo", type=Path, required=True)
+    experiment_preflight.add_argument("--push-results", action="store_true")
+    experiment_status = experiment_commands.add_parser("status")
+    experiment_status.add_argument("execution_id")
+    experiment_status.add_argument(
+        "--storage-root", type=Path, default=Path("experiment-storage")
+    )
+    for name in ("research-summary", "paper-material"):
+        leaf = experiment_commands.add_parser(name)
+        leaf.add_argument("target")
+        leaf.add_argument("--results-repo", type=Path, required=True)
+
     describe = commands.add_parser("describe", parents=[common])
     describe.add_argument("--assets", action="store_true")
     return parser
@@ -383,6 +422,8 @@ def _execute(args: argparse.Namespace) -> Any:
         if args.action == "validate":
             return {"valid": True, **selected}
         return selected
+    if args.group == "experiment":
+        return _execute_experiment(args)
     cogni = _load(args)
     if args.group == "storage":
         return cogni.storage.locate(args.storage_uri).to_dict()
@@ -490,8 +531,8 @@ def _execute(args: argparse.Namespace) -> Any:
         return {"deleted_document_id": args.document_id}
     if args.group == "artifact":
         if args.action == "read":
-            payload = cogni.artifacts.read(args.document_id, args.name)
-            return _artifact(args.name, payload)
+            artifact_payload = cogni.artifacts.read(args.document_id, args.name)
+            return _artifact(args.name, artifact_payload)
         if args.action == "locate":
             return cogni.artifacts.locate(args.document_id, args.name)
         return {
@@ -505,9 +546,9 @@ def _execute(args: argparse.Namespace) -> Any:
             raise ValueError("--batch-size must be between 1 and 500.")
         plan = cogni.cleanup.plan_blobs(older_than=_duration(args.older_than))
         if not args.yes:
-            payload = gc_plan(plan)
-            payload["dry_run"] = True
-            return payload
+            cleanup_payload = gc_plan(plan)
+            cleanup_payload["dry_run"] = True
+            return cleanup_payload
         result = cogni.cleanup.execute_blobs(plan, batch_size=args.batch_size)
         return {
             "dry_run": False,
@@ -521,6 +562,44 @@ def _execute(args: argparse.Namespace) -> Any:
     if args.assets:
         cogni.source_asset_registry
     return description(cogni.describe())
+
+
+def _execute_experiment(args: argparse.Namespace) -> None:
+    """Delegate the complete research command to cognityx-experiments."""
+    from cognityx_experiments.cli import main as experiments_main
+
+    forwarded = [str(args.action)]
+    if args.action in {"validate", "plan", "show-plan", "preflight", "run"}:
+        forwarded.append(str(args.research_yaml))
+        if args.execution_id:
+            forwarded.extend(("--execution-id", str(args.execution_id)))
+        if args.action == "run":
+            if args.resume:
+                forwarded.append("--resume")
+            if args.dry_run:
+                forwarded.append("--dry-run")
+        if args.action in {"preflight", "run"}:
+            forwarded.extend(("--storage-root", str(args.storage_root)))
+            if args.storage_config:
+                forwarded.extend(("--storage-config", str(args.storage_config)))
+            if args.results_repo:
+                forwarded.extend(("--results-repo", str(args.results_repo)))
+            if args.push_results:
+                forwarded.append("--push-results")
+    elif args.action == "status":
+        forwarded.extend(
+            (str(args.execution_id), "--storage-root", str(args.storage_root))
+        )
+    else:
+        forwarded.extend(
+            (str(args.target), "--results-repo", str(args.results_repo))
+        )
+    result = experiments_main(forwarded)
+    if result != 0:
+        raise RuntimeError(
+            f"cognityx-experiments returned non-zero status {result}"
+        )
+    return None
 
 
 class _ConfirmationRequired(ValueError):
