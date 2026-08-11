@@ -14,7 +14,7 @@ resolution-markers = [
 
 [manifest]
 overrides = [
-    { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=1da25539bcbac165fc5a04f23a78993616b84ea6" },
+    { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=b7138689c33cd102370932e2269cba8c88a7d692" },
     { name = "cognityx-inference", git = "https://github.com/cognityx/cognityx-inference.git?rev=061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7" },
     { name = "cognityx-jobs", git = "https://github.com/cognityx/cognityx-jobs.git?rev=e4312fd461df97ffcefc54352b9b76f1dd6e6860" },
     { name = "cognityx-resource", git = "https://github.com/cognityx/cognityx-resource.git?rev=b23220b69fcb182e681cf13276c37474666c9bd2" },
@@ -552,7 +552,7 @@ rich-ingest = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=1da25539bcbac165fc5a04f23a78993616b84ea6" },
+    { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=b7138689c33cd102370932e2269cba8c88a7d692" },
     { name = "cognityx-inference", marker = "extra == 'inference'", git = "https://github.com/cognityx/cognityx-inference.git?rev=061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7" },
     { name = "cognityx-ingest", git = "https://github.com/cognityx/cognityx-ingest.git?rev=56716dbdebde9bd92069cbd415aa7f657d55d9dd" },
     { name = "cognityx-ingest", extras = ["pymupdf", "docling"], marker = "extra == 'rich-ingest'", git = "https://github.com/cognityx/cognityx-ingest.git?rev=56716dbdebde9bd92069cbd415aa7f657d55d9dd" },
@@ -567,7 +567,7 @@ provides-extras = ["dev", "inference", "rich-ingest"]
 [[package]]
 name = "cognityx-experiments"
 version = "0.1.0"
-source = { git = "https://github.com/cognityx/cognityx-experiments.git?rev=1da25539bcbac165fc5a04f23a78993616b84ea6#1da25539bcbac165fc5a04f23a78993616b84ea6" }
+source = { git = "https://github.com/cognityx/cognityx-experiments.git?rev=b7138689c33cd102370932e2269cba8c88a7d692#b7138689c33cd102370932e2269cba8c88a7d692" }
 dependencies = [
     { name = "cognityx-observability" },
     { name = "cognityx-resource" },
