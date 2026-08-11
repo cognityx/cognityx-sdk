@@ -17,7 +17,26 @@ EXPECTED = {
     "cognityx-storage": "4b47b898b2fb465263d8c44350d4241f52b13c90",
     "cognityx-ingest": "56716dbdebde9bd92069cbd415aa7f657d55d9dd",
     "cognityx-jobs": "e4312fd461df97ffcefc54352b9b76f1dd6e6860",
-    "cognityx-experiments": "b7138689c33cd102370932e2269cba8c88a7d692",
+    "cognityx-experiments": "c6e6e44318305c6302118ecd8e7dd07e0a23cda7",
+}
+
+RESEARCH_DEPENDENCIES = {
+    "cognityx-core": (
+        "571f2291852ad22fe8427172bca71fc6a7a74a3d",
+        ("research-execution",),
+    ),
+    "cognityx-training": (
+        "bdc88a02f867ac509293b071e7df8d792d2f64cb",
+        ("research-execution", "research-tracking"),
+    ),
+    "cognityx-evaluator": (
+        "d65366e9533fe5ffe405f66b1c983499bb74c208",
+        ("research-execution", "research-tracking"),
+    ),
+    "cognityx-observability": (
+        "b02ec3c103d0b3fd22b7c33888155b763d6baa9f",
+        ("research-tracking",),
+    ),
 }
 
 
@@ -68,6 +87,35 @@ def _verify_requires_dist(metadata: str) -> None:
         )
     ):
         raise RuntimeError(f"Unexpected rich-ingest dependency metadata: {rich}")
+    inference_lines = [
+        line
+        for line in metadata.splitlines()
+        if line.startswith("Requires-Dist: cognityx-inference[")
+        and "extra == 'inference'" in line
+    ]
+    if len(inference_lines) != 1 or not all(
+        expected in inference_lines[0]
+        for expected in (
+            "api",
+            "telemetry",
+            "061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7",
+        )
+    ):
+        raise RuntimeError("Wheel metadata is missing the Inference execution extra.")
+    for distribution, (sha, extras) in RESEARCH_DEPENDENCIES.items():
+        for extra in extras:
+            matching = [
+                line
+                for line in metadata.splitlines()
+                if line.startswith(f"Requires-Dist: {distribution}")
+                and f"@{sha}" in line
+                and f"extra == '{extra}'" in line
+            ]
+            if len(matching) != 1:
+                raise RuntimeError(
+                    "Wheel metadata is missing exact research dependency: "
+                    f"{distribution}@{sha} for {extra}"
+                )
 
 
 def _python(environment: Path) -> Path:
