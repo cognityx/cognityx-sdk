@@ -30,7 +30,9 @@ cogni document   list | show | locate | delete
 cogni artifact   available | read | locate
 cogni provenance resolve
 cogni cleanup    blobs
+cogni describe
 cogni experiment validate | plan | show-plan | preflight | run | status
+cogni experiment config show | validate
 cogni experiment research-summary | paper-material
 ```
 
@@ -52,6 +54,33 @@ Research commands deliberately remain at the command-line boundary and
 delegate to `cognityx-experiments`; they do not add another copy of experiment
 logic to the SDK application root.
 
+## Choose JSON Or Readable Text
+
+Successful structured results are JSON by default. This is the stable form for
+scripts and applications, and omitting `--human` produces exactly the same JSON
+as before. Add `--human` when a person wants to read the same already-created
+result as labelled text:
+
+```bash
+cogni storage locate storage://local-main/artifacts/report.json --human
+cogni asset list --human
+cogni job status <job-id> --human
+cogni config show --component all --human
+cogni describe --human
+```
+
+Readable output does not look up extra information. It does not re-read
+configuration, contact a service, inspect credentials, or perform the command a
+second time. Full identifiers, hashes, paths, and logical Storage addresses are
+kept. Output contains no terminal colour or width-based shortening.
+
+`cogni job watch --human` prints each readable event immediately. Without the
+flag, its existing compact JSON event stream remains unchanged. Artifact reads
+label the encoding and then include all UTF-8 content or all base64 text for
+binary bytes. The Mermaid plan from `experiment show-plan` and the Markdown
+research summary remain their established native text and do not accept
+`--human`.
+
 ## Plan And Review Experiments
 
 A research plan is a typed file that freezes the question, treatments, metrics,
@@ -69,6 +98,8 @@ cogni experiment run research.yaml \
   --storage-config storage.toml \
   --results-repo ./cognityx-experiment-results --push-results
 cogni experiment status <execution-id>
+cogni experiment config show
+cogni experiment config validate --storage-config storage.toml
 ```
 
 Preflight is read-mostly and does not load a model. It returns a non-zero status
@@ -88,6 +119,11 @@ cogni experiment paper-material POLICY-RQ1 \
 
 These commands assemble evidence for human review. They do not claim novelty,
 support for a hypothesis, or generate a final paper.
+
+Experiment configuration inspection is also owned by Cognityx Experiments.
+The SDK forwards `cogni experiment config show|validate` directly to that
+component. It does not start the broader `Cogni` runtime merely to inspect
+configuration.
 
 Ingest owns the schemas and lifecycle rules behind these surfaces. Start with
 the [Ingest schema and object map](/ingest/schema-map/), then use the detailed
@@ -250,8 +286,9 @@ Supported artifact names are `document`, `evidence`, `provenance`, `manifest`,
 when the selected parser policy produced them. Raw parser-native payloads and
 arbitrary Storage keys are not part of this surface.
 
-`artifact read` is unchanged and still returns the artifact payload; `locate` only
-returns metadata.
+By default, `artifact read` is unchanged and returns its structured JSON
+envelope. With `--human`, the envelope labels whether the full content is UTF-8
+text or base64-encoded binary data. `locate` only returns metadata.
 
 ### Locate Any Storage URI
 
@@ -353,10 +390,10 @@ invented anchors are rejected. DataForge users do not need these options.
 When `ingest.inference.enabled` is `true` in project configuration, an operator
 must provide that target file through `COGNITYX_INGEST_INFERENCE_CONFIG`.
 
-Successful stdout is JSON. Diagnostics go to stderr. Exit codes are `0` for
-success, `1` for operational failure, `2` for arguments or missing
-confirmation, `3` for inaccessible resources, and `4` for authorization
-rejection.
+Successful stdout is JSON unless `--human` was explicitly selected for an
+eligible structured command. Diagnostics go to stderr. Exit codes are `0` for
+success, `1` for operational failure, `2` for arguments or missing confirmation,
+`3` for inaccessible resources, and `4` for authorization rejection.
 
 ## Deprecated / Compatibility
 

@@ -14,7 +14,7 @@ resolution-markers = [
 
 [manifest]
 overrides = [
-    { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=0a12279dfd953c2c598a3060d590225ef28c95d1" },
+    { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=aaf541eedc2dd62a9cfd652bbf8481f9f669e77b" },
     { name = "cognityx-inference", extras = ["api", "telemetry"], git = "https://github.com/cognityx/cognityx-inference.git?rev=fe9044a94e5450569f8bf3526a2a3228403483e7" },
     { name = "cognityx-jobs", git = "https://github.com/cognityx/cognityx-jobs.git?rev=e4312fd461df97ffcefc54352b9b76f1dd6e6860" },
     { name = "cognityx-resource", git = "https://github.com/cognityx/cognityx-resource.git?rev=a740b0d54681236ac0699277a82e502ed385c954" },
@@ -606,7 +606,7 @@ requires-dist = [
     { name = "cognityx-core", marker = "extra == 'research-execution'", git = "https://github.com/cognityx/cognityx-core.git?rev=571f2291852ad22fe8427172bca71fc6a7a74a3d" },
     { name = "cognityx-evaluator", marker = "extra == 'research-execution'", git = "https://github.com/cognityx/cognityx-evaluator.git?rev=4925de95c61d89ff3e1d8b0c367bbb779f2038f8" },
     { name = "cognityx-evaluator", extras = ["tracking"], marker = "extra == 'research-tracking'", git = "https://github.com/cognityx/cognityx-evaluator.git?rev=4925de95c61d89ff3e1d8b0c367bbb779f2038f8" },
-    { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=0a12279dfd953c2c598a3060d590225ef28c95d1" },
+    { name = "cognityx-experiments", git = "https://github.com/cognityx/cognityx-experiments.git?rev=aaf541eedc2dd62a9cfd652bbf8481f9f669e77b" },
     { name = "cognityx-inference", extras = ["api", "telemetry"], marker = "extra == 'inference'", git = "https://github.com/cognityx/cognityx-inference.git?rev=fe9044a94e5450569f8bf3526a2a3228403483e7" },
     { name = "cognityx-ingest", git = "https://github.com/cognityx/cognityx-ingest.git?rev=56716dbdebde9bd92069cbd415aa7f657d55d9dd" },
     { name = "cognityx-ingest", extras = ["pymupdf", "docling"], marker = "extra == 'rich-ingest'", git = "https://github.com/cognityx/cognityx-ingest.git?rev=56716dbdebde9bd92069cbd415aa7f657d55d9dd" },
@@ -643,7 +643,7 @@ tracking = [
 [[package]]
 name = "cognityx-experiments"
 version = "0.1.0"
-source = { git = "https://github.com/cognityx/cognityx-experiments.git?rev=0a12279dfd953c2c598a3060d590225ef28c95d1#0a12279dfd953c2c598a3060d590225ef28c95d1" }
+source = { git = "https://github.com/cognityx/cognityx-experiments.git?rev=aaf541eedc2dd62a9cfd652bbf8481f9f669e77b#aaf541eedc2dd62a9cfd652bbf8481f9f669e77b" }
 dependencies = [
     { name = "cognityx-observability" },
     { name = "cognityx-resource" },

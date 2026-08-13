@@ -109,6 +109,37 @@ from cognityx.cli import main
                 "results",
             ],
         ),
+        (
+            [
+                "experiment",
+                "config",
+                "show",
+                "--storage-config",
+                "storage.toml",
+            ],
+            ["config", "show", "--storage-config", "storage.toml"],
+        ),
+        (
+            [
+                "experiment",
+                "config",
+                "validate",
+                "--storage-root",
+                "research-storage",
+                "--human",
+            ],
+            [
+                "config",
+                "validate",
+                "--storage-root",
+                "research-storage",
+                "--human",
+            ],
+        ),
+        (
+            ["experiment", "status", "execution-1", "--human"],
+            ["status", "execution-1", "--human"],
+        ),
     ],
 )
 def test_experiment_commands_delegate_without_loading_sdk_components(
@@ -137,3 +168,30 @@ def test_experiment_commands_delegate_without_loading_sdk_components(
     assert main(arguments) == 0
     assert calls == [forwarded]
     assert capsys.readouterr().out == ""
+
+
+def test_experiment_config_preserves_delegated_validation_exit_and_channels(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    package = ModuleType("cognityx_experiments")
+    package.__path__ = []  # type: ignore[attr-defined]
+    cli = ModuleType("cognityx_experiments.cli")
+
+    def fake_main(values: list[str]) -> int:
+        assert values == ["config", "validate", "--human"]
+        print("Valid: false\nErrors:\n  Code: configuration_invalid")
+        return 2
+
+    cli.main = fake_main  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "cognityx_experiments", package)
+    monkeypatch.setitem(sys.modules, "cognityx_experiments.cli", cli)
+    monkeypatch.setattr(
+        "cognityx.cli._load",
+        lambda _args: (_ for _ in ()).throw(AssertionError("SDK root loaded")),
+    )
+
+    assert main(["experiment", "config", "validate", "--human"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "Valid: false\nErrors:\n  Code: configuration_invalid\n"
+    assert captured.err == ""

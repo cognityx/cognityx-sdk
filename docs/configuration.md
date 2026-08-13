@@ -22,6 +22,10 @@ Both commands emit deterministic JSON and use the same pure resolvers as real
 execution. They do not create a catalog or Jobs database, construct a parser,
 open Storage, load a model, contact a provider, or make a network call.
 
+Add `--human` to read the same secret-safe report as labelled text. JSON remains
+the default for automation, and rendering the readable form does not resolve
+configuration again.
+
 The report distinguishes the highest-precedence file actually loaded
 (`master_config`), every loaded file in low-to-high order (`config_layers`),
 where values came from (`field_sources`), explicit values that really changed
@@ -51,6 +55,17 @@ Storage and Resource Context reports come from their owner packages. Storage
 preserves explicit, environment, project, user, then built-in selection.
 Context preserves explicit, environment, project, user, then built-in selection
 and reports only field or scope arguments that changed a value.
+
+Experiment configuration has its own owner and can be inspected through the
+SDK without loading the broader application runtime:
+
+```bash
+cogni experiment config show [--storage-config PATH | --storage-root PATH]
+cogni experiment config validate [--storage-config PATH | --storage-root PATH]
+```
+
+These commands delegate to Cognityx Experiments. Add `--human` for readable
+text; omit it for the component's unchanged JSON report.
 
 ## What remains explicit
 

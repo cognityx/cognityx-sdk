@@ -17,7 +17,7 @@ EXPECTED = {
     "cognityx-storage": "9e51398e89d5df952e37b766b62f31bb2519b5ff",
     "cognityx-ingest": "56716dbdebde9bd92069cbd415aa7f657d55d9dd",
     "cognityx-jobs": "e4312fd461df97ffcefc54352b9b76f1dd6e6860",
-    "cognityx-experiments": "0a12279dfd953c2c598a3060d590225ef28c95d1",
+    "cognityx-experiments": "aaf541eedc2dd62a9cfd652bbf8481f9f669e77b",
 }
 
 RESEARCH_DEPENDENCIES = {
