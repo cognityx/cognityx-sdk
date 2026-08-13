@@ -7,5 +7,6 @@ nav:
   - Home: index.md
   - Concepts: concepts.md
   - Architecture: architecture.md
+  - Configuration: configuration.md
   - API: api.md
   - CLI: cli.md

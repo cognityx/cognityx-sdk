@@ -25,14 +25,14 @@ from cognityx_ingest import (
     SourceAssetCleanupService,
     SourceAssetRegistry,
 )
-from cognityx_ingest.enhancement import load_resolution_config
 from cognityx_ingest.control import ControlClient
+from cognityx_ingest.enhancement import load_resolution_config
 from cognityx_jobs import JobRepository
 from cognityx_resource import ExecutionContext, ResourceContext, load_resource_context
 from cognityx_storage import StorageRuntime
 
-from cognityx.assets import Assets
 from cognityx.artifacts import Artifacts
+from cognityx.assets import Assets
 from cognityx.cleanup import Cleanup
 from cognityx.doc_bundles import DocBundles
 from cognityx.documents import Documents
@@ -129,9 +129,10 @@ class Cogni:
         parser_policy: str | None = None,
         parser_backends: tuple[str, ...] | None = None,
         inference_enabled: bool | None = None,
+        ingest_config: str | Path | None = None,
         user_ingest_config_file: str | Path | None = None,
         control: ControlClient | None = None,
-    ) -> "Cogni":
+    ) -> Cogni:
         """Resolve local configuration and return one ready, still-lazy root.
 
         Applications and the CLI use this primary factory.  It rejects conflicting
@@ -164,6 +165,7 @@ class Cogni:
             cwd=cwd,
         )
         selected_ingest = load_ingest_configuration(
+            config_file=ingest_config,
             cwd=cwd,
             user_config_file=user_ingest_config_file,
             parser_policy=parser_policy,

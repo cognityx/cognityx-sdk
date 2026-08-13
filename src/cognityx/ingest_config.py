@@ -15,14 +15,14 @@ execution bridge for all three adaptive modes, so this module does not accept a
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
-from pathlib import Path
 import tomllib
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from hashlib import sha256
+from pathlib import Path
 
 from cognityx_ingest import ExtractionPolicy, adaptive_mode_for_legacy_policy
-
 
 PARSER_POLICIES = frozenset({"fixed", "rule", "fallback", "compare", "agent"})
 PARSER_BACKENDS = frozenset({"basic", "pymupdf", "docling"})
@@ -45,6 +45,9 @@ class IngestConfiguration:
     parser_backends: tuple[str, ...]
     inference_enabled: bool
     sources: Mapping[str, str]
+    config_layers: tuple[Mapping[str, object], ...] = ()
+    field_sources: Mapping[str, str] | None = None
+    overrides: tuple[Mapping[str, object], ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         """Return secret-free execution settings plus derived routing context.
@@ -79,9 +82,33 @@ class IngestConfiguration:
             },
         }
 
+    def diagnostic_dict(self) -> dict[str, object]:
+        """Return the standard static configuration diagnostic contract."""
+        compatible = self.to_dict()
+        layers = [dict(layer) for layer in self.config_layers]
+        master = layers[-1] if layers else None
+        return {
+            "component": "ingest",
+            "configuration_kind": "persistent-component",
+            "valid": True,
+            "master_config": {
+                "kind": "file" if master is not None else "built-in",
+                "path": master["path"] if master is not None else None,
+                "selected_by": master["selected_by"] if master is not None else "built-in",
+                "sha256": master["sha256"] if master is not None else None,
+            },
+            "config_layers": layers,
+            "field_sources": dict(self.field_sources or {}),
+            "overrides": [dict(item) for item in self.overrides],
+            "effective": compatible["ingest"],
+            "warnings": [],
+            "errors": [],
+        }
+
 
 def load_ingest_configuration(
     *,
+    config_file: str | Path | None = None,
     cwd: str | Path | None = None,
     user_config_file: str | Path | None = None,
     parser_policy: str | None = None,
@@ -104,6 +131,12 @@ def load_ingest_configuration(
         "inference_enabled": False,
     }
     sources = {name: "built-in defaults" for name in values}
+    diagnostic_sources = {
+        "parser_policy": "built-in",
+        "parser_backends": "built-in",
+        "inference.enabled": "built-in",
+    }
+    layers: list[Mapping[str, object]] = []
 
     project = Path(cwd or Path.cwd()) / ".cognityx" / "ingest.toml"
     user = (
@@ -120,16 +153,35 @@ def load_ingest_configuration(
             f"COGNITYX_INGEST_CONFIG does not exist: {environment}"
         )
 
+    explicit = Path(config_file) if config_file is not None else None
+    if explicit is not None and not explicit.is_file():
+        raise FileNotFoundError(f"Ingest config file does not exist: {explicit}")
+
     for label, path in (
         ("user", user),
         ("project", project),
         ("environment", environment),
+        ("explicit", explicit),
     ):
         if path is None or not path.is_file():
             continue
-        for name, value in _read_ingest_file(path).items():
+        selected_path = path.expanduser().resolve()
+        raw = selected_path.read_bytes()
+        changed_keys: list[str] = []
+        for name, value in _read_ingest_bytes(raw, selected_path).items():
+            previous = values[name]
             values[name] = value
             sources[name] = f"{label}:{path}"
+            dotted = "inference.enabled" if name == "inference_enabled" else name
+            if previous != value:
+                changed_keys.append(dotted)
+                diagnostic_sources[dotted] = str(selected_path)
+        layers.append({
+            "path": str(selected_path),
+            "selected_by": label,
+            "sha256": sha256(raw).hexdigest(),
+            "changed_keys": sorted(changed_keys),
+        })
 
     cli_values = {
         "parser_policy": parser_policy,
@@ -138,10 +190,27 @@ def load_ingest_configuration(
         ),
         "inference_enabled": inference_enabled,
     }
+    actual_overrides: list[Mapping[str, object]] = []
+    override_sources = {
+        "parser_policy": "--parser-policy",
+        "parser_backends": "--parser-backend",
+        "inference_enabled": "python-argument",
+    }
     for name, value in cli_values.items():
         if value is not None:
+            previous = values[name]
             values[name] = value
-            sources[name] = "cli"
+            if previous != value:
+                sources[name] = "cli"
+                dotted = "inference.enabled" if name == "inference_enabled" else name
+                diagnostic_sources[dotted] = override_sources[name]
+                actual_overrides.append({
+                    "key": dotted,
+                    "source": override_sources[name],
+                    "previous": list(previous) if isinstance(previous, tuple) else previous,
+                    "effective": list(value) if isinstance(value, tuple) else value,
+                    "changed": True,
+                })
 
     selected_policy = _validate_policy(values["parser_policy"])
     selected_backends = _validate_backends(values["parser_backends"])
@@ -155,6 +224,9 @@ def load_ingest_configuration(
         parser_backends=selected_backends,
         inference_enabled=selected_inference,
         sources=sources,
+        config_layers=tuple(layers),
+        field_sources=diagnostic_sources,
+        overrides=tuple(actual_overrides),
     )
 
 
@@ -168,8 +240,12 @@ def _read_ingest_file(path: Path) -> dict[str, object]:
     secrets or contacts external services, preserves parser order, and reports
     malformed or unknown input as bounded ``ValueError`` failures.
     """
+    return _read_ingest_bytes(path.read_bytes(), path)
+
+
+def _read_ingest_bytes(raw: bytes, path: Path) -> dict[str, object]:
     try:
-        value = tomllib.loads(path.read_text(encoding="utf-8"))
+        value = tomllib.loads(raw.decode("utf-8"))
     except tomllib.TOMLDecodeError as exc:
         raise ValueError(f"Invalid Ingest TOML in {path}: {exc}") from None
     unsupported_top = set(value) - {"ingest"}

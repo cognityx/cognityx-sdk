@@ -34,8 +34,6 @@ from cognityx.cli import main
             [
                 "preflight",
                 "research.yaml",
-                "--storage-root",
-                "experiment-storage",
                 "--storage-config",
                 "storage.toml",
                 "--results-repo",
