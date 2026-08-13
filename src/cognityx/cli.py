@@ -111,9 +111,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="group", required=True)
 
-    storage = commands.add_parser(
-        "storage", help="Inspect configured Storage objects."
-    )
+    storage = commands.add_parser("storage", help="Inspect configured Storage objects.")
     storage_commands = storage.add_subparsers(dest="action", required=True)
     locate_storage = storage_commands.add_parser("locate", parents=[common])
     locate_storage.add_argument("storage_uri", metavar="storage-uri")
@@ -134,9 +132,7 @@ def _parser() -> argparse.ArgumentParser:
     recursion.add_argument(
         "--recursive", dest="recursive", action="store_true", default=True
     )
-    recursion.add_argument(
-        "--no-recursive", dest="recursive", action="store_false"
-    )
+    recursion.add_argument("--no-recursive", dest="recursive", action="store_false")
     listing = asset_commands.add_parser("list", parents=[common])
     listing.add_argument("--bundle")
     for name in ("show", "locate"):
@@ -160,7 +156,9 @@ def _parser() -> argparse.ArgumentParser:
     delete_bundle = bundle_commands.add_parser("delete", parents=[common])
     delete_bundle.add_argument("bundle_id")
     delete_bundle.add_argument("--recursive", action="store_true")
-    delete_bundle.add_argument("--yes", action="store_true", help="Confirm logical deletion.")
+    delete_bundle.add_argument(
+        "--yes", action="store_true", help="Confirm logical deletion."
+    )
     delete_bundle.add_argument("--reason")
     bundle_commands.add_parser("deleted", parents=[common])
 
@@ -176,9 +174,7 @@ def _parser() -> argparse.ArgumentParser:
     ingest_config = commands.add_parser(
         "ingest-config", help="Inspect effective Ingest configuration."
     )
-    ingest_config_commands = ingest_config.add_subparsers(
-        dest="action", required=True
-    )
+    ingest_config_commands = ingest_config.add_subparsers(dest="action", required=True)
     ingest_config_commands.add_parser("show", parents=[common])
     ingest_config_commands.add_parser("validate", parents=[common])
 
@@ -217,7 +213,9 @@ def _parser() -> argparse.ArgumentParser:
             leaf.add_argument("--yes", action="store_true")
 
     documents = commands.add_parser(
-        "document", aliases=("documents",), help="Inspect or remove generated documents."
+        "document",
+        aliases=("documents",),
+        help="Inspect or remove generated documents.",
     )
     document_commands = documents.add_subparsers(dest="action", required=True)
     document_commands.add_parser("list", parents=[common])
@@ -248,7 +246,9 @@ def _parser() -> argparse.ArgumentParser:
     resolve.add_argument("document_id")
     resolve.add_argument("address_id")
 
-    cleanup = commands.add_parser("cleanup", help="Plan or execute physical Blob cleanup.")
+    cleanup = commands.add_parser(
+        "cleanup", help="Plan or execute physical Blob cleanup."
+    )
     cleanup_commands = cleanup.add_subparsers(dest="action", required=True)
     blobs = cleanup_commands.add_parser(
         "blobs",
@@ -257,7 +257,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     confirmation = blobs.add_mutually_exclusive_group()
     confirmation.add_argument("--dry-run", action="store_true")
-    confirmation.add_argument("--yes", action="store_true", help="Execute the fresh plan.")
+    confirmation.add_argument(
+        "--yes", action="store_true", help="Execute the fresh plan."
+    )
     blobs.add_argument("--older-than", default="7d", metavar="DURATION")
     blobs.add_argument("--batch-size", type=int, default=100)
 
@@ -317,7 +319,9 @@ def _scopes(values: list[str]) -> dict[str, str]:
             raise ValueError(f"Malformed --scope {value!r}; expected KEY=VALUE.")
         key, selected = value.split("=", 1)
         if not key or not selected:
-            raise ValueError(f"Malformed --scope {value!r}; expected non-empty KEY=VALUE.")
+            raise ValueError(
+                f"Malformed --scope {value!r}; expected non-empty KEY=VALUE."
+            )
         scopes[key] = selected
     return scopes
 
@@ -480,16 +484,18 @@ def _configuration_report(
             previous = StorageConfig.built_in().profiles["local-main"].options["root"]
             effective = storage_resolution.config.profiles["local-main"].options["root"]
             if previous != effective:
-                storage["overrides"] = [{
-                    "key": "storage.profiles.local-main.options.root",
-                    "source": "--storage-root",
-                    "previous": previous,
-                    "effective": effective,
-                    "changed": True,
-                }]
-                storage["field_sources"][
-                    "storage.profiles.local-main.options.root"
-                ] = "--storage-root"
+                storage["overrides"] = [
+                    {
+                        "key": "storage.profiles.local-main.options.root",
+                        "source": "--storage-root",
+                        "previous": previous,
+                        "effective": effective,
+                        "changed": True,
+                    }
+                ]
+                storage["field_sources"]["storage.profiles.local-main.options.root"] = (
+                    "--storage-root"
+                )
         else:
             storage = resolve_storage_config(
                 config_file=getattr(args, "storage_config", None)
@@ -503,9 +509,7 @@ def _configuration_report(
             parser_policy=getattr(args, "parser_policy", None),
             parser_backends=getattr(args, "parser_backend", None),
             inference_enabled=(
-                True
-                if getattr(args, "inference_config", None) is not None
-                else None
+                True if getattr(args, "inference_config", None) is not None else None
             ),
         )
         ingest_report = ingest.diagnostic_dict()
@@ -544,7 +548,8 @@ def _configuration_report(
     return {
         "component": "sdk",
         "configuration_kind": "composed-dependencies",
-        "valid": not errors and all(bool(report["valid"]) for report in reports.values()),
+        "valid": not errors
+        and all(bool(report["valid"]) for report in reports.values()),
         "master_config": {
             "kind": "built-in",
             "path": None,
@@ -562,11 +567,15 @@ def _configuration_report(
         "runtime_selections": {
             "catalog_path": {
                 "value": str(args.catalog_path) if args.catalog_path else None,
-                "selected_by": "--catalog-path" if args.catalog_path else "component-default",
+                "selected_by": "--catalog-path"
+                if args.catalog_path
+                else "component-default",
             },
             "jobs_database": {
                 "value": str(args.jobs_database) if args.jobs_database else None,
-                "selected_by": "--jobs-database" if args.jobs_database else "component-default",
+                "selected_by": "--jobs-database"
+                if args.jobs_database
+                else "component-default",
             },
             "bounded_inference": inference_selection,
         },
@@ -664,15 +673,21 @@ def _execute(args: argparse.Namespace) -> Any:
                 else registration(result)
             )
         if args.action == "list":
-            return [source_asset(item) for item in cogni.assets.list(bundle=args.bundle)]
+            return [
+                source_asset(item) for item in cogni.assets.list(bundle=args.bundle)
+            ]
         if args.action == "show":
             return source_asset(cogni.assets.get(args.asset_id))
         if args.action == "locate":
             return asset_location(cogni.assets.locate(args.asset_id))
         if args.action == "delete":
             if not args.yes:
-                raise _ConfirmationRequired("assets delete requires --yes; no deletion was performed.")
-            return asset_deletion(cogni.assets.delete(args.asset_id, reason=args.reason))
+                raise _ConfirmationRequired(
+                    "assets delete requires --yes; no deletion was performed."
+                )
+            return asset_deletion(
+                cogni.assets.delete(args.asset_id, reason=args.reason)
+            )
         return [source_asset(item) for item in cogni.assets.list_deleted()]
     if args.group == "bundle":
         if args.action == "create":
@@ -683,7 +698,9 @@ def _execute(args: argparse.Namespace) -> Any:
             return cogni.doc_bundles.locate(args.bundle_id)
         if args.action == "delete":
             if not args.yes:
-                raise _ConfirmationRequired("doc-bundles delete requires --yes; no deletion was performed.")
+                raise _ConfirmationRequired(
+                    "doc-bundles delete requires --yes; no deletion was performed."
+                )
             return bundle_deletion(
                 cogni.doc_bundles.delete(
                     args.bundle_id, recursive=args.recursive, reason=args.reason
@@ -731,7 +748,9 @@ def _execute(args: argparse.Namespace) -> Any:
         if args.action == "locate":
             return cogni.runs.locate(args.run_id)
         if not args.yes:
-            raise _ConfirmationRequired("runs delete requires --yes; no deletion was performed.")
+            raise _ConfirmationRequired(
+                "runs delete requires --yes; no deletion was performed."
+            )
         cogni.ingest_manager.delete_run(execution, args.run_id)
         return {"deleted_run_id": args.run_id}
     if args.group == "document":
@@ -743,7 +762,9 @@ def _execute(args: argparse.Namespace) -> Any:
         if args.action == "locate":
             return cogni.documents.locate(args.document_id)
         if not args.yes:
-            raise _ConfirmationRequired("documents delete requires --yes; no deletion was performed.")
+            raise _ConfirmationRequired(
+                "documents delete requires --yes; no deletion was performed."
+            )
         cogni.ingest_manager.delete_document(execution, args.document_id)
         return {"deleted_document_id": args.document_id}
     if args.group == "artifact":
@@ -811,14 +832,10 @@ def _execute_experiment(args: argparse.Namespace) -> None:
         if args.storage_config is not None:
             forwarded.extend(("--storage-config", str(args.storage_config)))
     else:
-        forwarded.extend(
-            (str(args.target), "--results-repo", str(args.results_repo))
-        )
+        forwarded.extend((str(args.target), "--results-repo", str(args.results_repo)))
     result = experiments_main(forwarded)
     if result != 0:
-        raise RuntimeError(
-            f"cognityx-experiments returned non-zero status {result}"
-        )
+        raise RuntimeError(f"cognityx-experiments returned non-zero status {result}")
     return None
 
 
@@ -851,9 +868,9 @@ def _watch_job(cogni: Cogni, job_id: str, *, owner_id: str, after: int) -> None:
         for event in events:
             print(json.dumps(event, sort_keys=True), flush=True)
             after = int(event["sequence"])
-        status = cogni.ingest_manager.show_job(
-            execution, job_id, owner_id=owner_id
-        )["job"]["state"]
+        status = cogni.ingest_manager.show_job(execution, job_id, owner_id=owner_id)[
+            "job"
+        ]["state"]
         if status in terminal:
             return
         time.sleep(0.25)
@@ -868,7 +885,11 @@ def _artifact(name: str, payload: bytes) -> dict[str, Any]:
     does not inspect schemas, alter bytes, expose paths, or perform persistence.
     """
     try:
-        return {"artifact": name, "encoding": "utf-8", "content": payload.decode("utf-8")}
+        return {
+            "artifact": name,
+            "encoding": "utf-8",
+            "content": payload.decode("utf-8"),
+        }
     except UnicodeDecodeError:
         return {
             "artifact": name,

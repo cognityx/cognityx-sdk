@@ -4,20 +4,20 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import venv
+from pathlib import Path
 from zipfile import ZipFile
 
 VERSION = "0.2.0"
 EXPECTED = {
-    "cognityx-resource": "b23220b69fcb182e681cf13276c37474666c9bd2",
-    "cognityx-storage": "4b47b898b2fb465263d8c44350d4241f52b13c90",
+    "cognityx-resource": "a740b0d54681236ac0699277a82e502ed385c954",
+    "cognityx-storage": "9e51398e89d5df952e37b766b62f31bb2519b5ff",
     "cognityx-ingest": "56716dbdebde9bd92069cbd415aa7f657d55d9dd",
     "cognityx-jobs": "e4312fd461df97ffcefc54352b9b76f1dd6e6860",
-    "cognityx-experiments": "c6e6e44318305c6302118ecd8e7dd07e0a23cda7",
+    "cognityx-experiments": "0a12279dfd953c2c598a3060d590225ef28c95d1",
 }
 
 RESEARCH_DEPENDENCIES = {
@@ -26,11 +26,11 @@ RESEARCH_DEPENDENCIES = {
         ("research-execution",),
     ),
     "cognityx-training": (
-        "bdc88a02f867ac509293b071e7df8d792d2f64cb",
+        "c17119ee71941eba6e0f2b68023644c4383fee0d",
         ("research-execution", "research-tracking"),
     ),
     "cognityx-evaluator": (
-        "d65366e9533fe5ffe405f66b1c983499bb74c208",
+        "4925de95c61d89ff3e1d8b0c367bbb779f2038f8",
         ("research-execution", "research-tracking"),
     ),
     "cognityx-observability": (
@@ -40,10 +40,16 @@ RESEARCH_DEPENDENCIES = {
 }
 
 
-def _run(command: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def _run(
+    command: list[str], *, cwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
-        command, cwd=cwd, check=False, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        command,
+        cwd=cwd,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     if result.returncode:
         raise RuntimeError(
@@ -55,7 +61,9 @@ def _run(command: list[str], *, cwd: Path | None = None) -> subprocess.Completed
 
 def _metadata(wheel: Path) -> str:
     with ZipFile(wheel) as archive:
-        names = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+        names = [
+            name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+        ]
         if len(names) != 1:
             raise RuntimeError(f"Expected one METADATA file in {wheel}, found {names}.")
         return archive.read(names[0]).decode()
@@ -68,7 +76,9 @@ def _verify_requires_dist(metadata: str) -> None:
             f"git+https://github.com/cognityx/{distribution}.git@{sha}"
         )
         if expected not in metadata:
-            raise RuntimeError(f"Wheel metadata is missing exact dependency: {expected}")
+            raise RuntimeError(
+                f"Wheel metadata is missing exact dependency: {expected}"
+            )
     rich_lines = [
         line
         for line in metadata.splitlines()
@@ -98,7 +108,7 @@ def _verify_requires_dist(metadata: str) -> None:
         for expected in (
             "api",
             "telemetry",
-            "061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7",
+            "fe9044a94e5450569f8bf3526a2a3228403483e7",
         )
     ):
         raise RuntimeError("Wheel metadata is missing the Inference execution extra.")
@@ -119,7 +129,9 @@ def _verify_requires_dist(metadata: str) -> None:
 
 
 def _python(environment: Path) -> Path:
-    return environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    return environment / (
+        "Scripts/python.exe" if sys.platform == "win32" else "bin/python"
+    )
 
 
 def _command(environment: Path, name: str) -> Path:
@@ -174,9 +186,12 @@ def main() -> int:
         source = root / "source.txt"
         source.write_bytes(b"installed wheel lifecycle")
         common = [
-            "--tenant-id", "wheel-verification",
-            "--storage-root", str(storage),
-            "--catalog-path", str(catalog),
+            "--tenant-id",
+            "wheel-verification",
+            "--storage-root",
+            str(storage),
+            "--catalog-path",
+            str(catalog),
         ]
         described = _json([str(cogni), "describe", *common])
         if described["source_asset_catalog"] is not None:

@@ -94,7 +94,9 @@ class IngestConfiguration:
             "master_config": {
                 "kind": "file" if master is not None else "built-in",
                 "path": master["path"] if master is not None else None,
-                "selected_by": master["selected_by"] if master is not None else "built-in",
+                "selected_by": master["selected_by"]
+                if master is not None
+                else "built-in",
                 "sha256": master["sha256"] if master is not None else None,
             },
             "config_layers": layers,
@@ -149,9 +151,7 @@ def load_ingest_configuration(
     configured = os.environ.get("COGNITYX_INGEST_CONFIG")
     environment = Path(configured) if configured else None
     if environment is not None and not environment.is_file():
-        raise FileNotFoundError(
-            f"COGNITYX_INGEST_CONFIG does not exist: {environment}"
-        )
+        raise FileNotFoundError(f"COGNITYX_INGEST_CONFIG does not exist: {environment}")
 
     explicit = Path(config_file) if config_file is not None else None
     if explicit is not None and not explicit.is_file():
@@ -176,12 +176,14 @@ def load_ingest_configuration(
             if previous != value:
                 changed_keys.append(dotted)
                 diagnostic_sources[dotted] = str(selected_path)
-        layers.append({
-            "path": str(selected_path),
-            "selected_by": label,
-            "sha256": sha256(raw).hexdigest(),
-            "changed_keys": sorted(changed_keys),
-        })
+        layers.append(
+            {
+                "path": str(selected_path),
+                "selected_by": label,
+                "sha256": sha256(raw).hexdigest(),
+                "changed_keys": sorted(changed_keys),
+            }
+        )
 
     cli_values = {
         "parser_policy": parser_policy,
@@ -204,13 +206,17 @@ def load_ingest_configuration(
                 sources[name] = "cli"
                 dotted = "inference.enabled" if name == "inference_enabled" else name
                 diagnostic_sources[dotted] = override_sources[name]
-                actual_overrides.append({
-                    "key": dotted,
-                    "source": override_sources[name],
-                    "previous": list(previous) if isinstance(previous, tuple) else previous,
-                    "effective": list(value) if isinstance(value, tuple) else value,
-                    "changed": True,
-                })
+                actual_overrides.append(
+                    {
+                        "key": dotted,
+                        "source": override_sources[name],
+                        "previous": list(previous)
+                        if isinstance(previous, tuple)
+                        else previous,
+                        "effective": list(value) if isinstance(value, tuple) else value,
+                        "changed": True,
+                    }
+                )
 
     selected_policy = _validate_policy(values["parser_policy"])
     selected_backends = _validate_backends(values["parser_backends"])
@@ -260,8 +266,7 @@ def _read_ingest_bytes(raw: bytes, path: Path) -> dict[str, object]:
     unsupported = set(ingest) - {"parser_policy", "parser_backends", "inference"}
     if unsupported:
         raise ValueError(
-            f"Unsupported [ingest] setting in {path}: "
-            + ", ".join(sorted(unsupported))
+            f"Unsupported [ingest] setting in {path}: " + ", ".join(sorted(unsupported))
         )
 
     selected: dict[str, object] = {}
@@ -280,9 +285,7 @@ def _read_ingest_bytes(raw: bytes, path: Path) -> dict[str, object]:
                 + ", ".join(sorted(unsupported_inference))
             )
         if "enabled" in inference:
-            selected["inference_enabled"] = _validate_inference(
-                inference["enabled"]
-            )
+            selected["inference_enabled"] = _validate_inference(inference["enabled"])
     return selected
 
 
@@ -315,8 +318,7 @@ def _validate_backends(value: object) -> tuple[str, ...]:
         raise ValueError("ingest parser_backends must be a non-empty list.")
     selected = tuple(value)
     if any(
-        not isinstance(item, str) or item not in PARSER_BACKENDS
-        for item in selected
+        not isinstance(item, str) or item not in PARSER_BACKENDS for item in selected
     ):
         choices = ", ".join(sorted(PARSER_BACKENDS))
         raise ValueError(

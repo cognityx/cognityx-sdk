@@ -151,9 +151,7 @@ class Cogni:
                 "context_overrides, or user_context_file."
             )
         if storage_runtime is not None and storage_config is not None:
-            raise ValueError(
-                "Pass either storage_runtime or storage_config, not both."
-            )
+            raise ValueError("Pass either storage_runtime or storage_config, not both.")
         selected_context = context or load_resource_context(
             context_file=context_file,
             overrides=context_overrides,
@@ -403,9 +401,7 @@ class Cogni:
                     else None
                 )
                 extractor = ParserRouter(
-                    policy=ExtractionPolicy(
-                        self._parser_policy, self._parser_backends
-                    ),
+                    policy=ExtractionPolicy(self._parser_policy, self._parser_backends),
                     selector=resolver if self._parser_policy == "agent" else None,
                 )
                 self._ingest_service = IngestService(
