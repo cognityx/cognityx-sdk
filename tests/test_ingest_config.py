@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 
 import pytest
+from cognityx_storage import StorageConfig, StorageRuntime
 
 from cognityx import Cogni, load_ingest_configuration
 from cognityx.cli import main
-from cognityx_storage import StorageConfig, StorageRuntime
 
 
 def _write_config(
@@ -24,9 +24,7 @@ def _write_config(
         selected = ", ".join(f'"{item}"' for item in backends)
         lines.append(f"parser_backends = [{selected}]")
     if inference is not None:
-        lines.extend(
-            ("", "[ingest.inference]", f"enabled = {str(inference).lower()}")
-        )
+        lines.extend(("", "[ingest.inference]", f"enabled = {str(inference).lower()}"))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -38,9 +36,7 @@ def test_ingest_configuration_precedence_is_per_value(
     project = tmp_path / "project"
     environment = tmp_path / "environment.toml"
     _write_config(user, policy="rule", backends=("basic",), inference=True)
-    _write_config(
-        project / ".cognityx/ingest.toml", policy="compare", inference=False
-    )
+    _write_config(project / ".cognityx/ingest.toml", policy="compare", inference=False)
     _write_config(
         environment,
         policy="rule",
@@ -69,6 +65,156 @@ def test_ingest_configuration_precedence_is_per_value(
     assert selected.sources["inference_enabled"] == (
         f"project:{project / '.cognityx/ingest.toml'}"
     )
+
+
+def test_explicit_ingest_file_is_highest_layer_and_shared_with_cogni(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    explicit = tmp_path / "explicit.toml"
+    environment = tmp_path / "environment.toml"
+    _write_config(project / ".cognityx/ingest.toml", policy="rule")
+    _write_config(environment, backends=("pymupdf", "basic"))
+    _write_config(explicit, policy="fallback", backends=("docling", "basic"))
+    monkeypatch.setenv("COGNITYX_INGEST_CONFIG", str(environment))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user"))
+
+    selected = load_ingest_configuration(config_file=explicit, cwd=project)
+    cogni = Cogni.load(
+        cwd=project,
+        ingest_config=explicit,
+        storage_runtime=StorageRuntime.from_config(
+            StorageConfig.built_in(root=tmp_path / "storage")
+        ),
+    )
+    report = selected.diagnostic_dict()
+
+    assert selected == cogni.ingest_configuration
+    assert selected.parser_policy == "fallback"
+    assert report["master_config"]["path"] == str(explicit.resolve())
+    assert report["master_config"]["selected_by"] == "explicit"
+    assert [layer["selected_by"] for layer in report["config_layers"]] == [
+        "project",
+        "environment",
+        "explicit",
+    ]
+    assert (
+        report["master_config"]["sha256"]
+        == __import__("hashlib").sha256(explicit.read_bytes()).hexdigest()
+    )
+
+
+def test_aggregate_config_ingest_is_static_and_missing_file_is_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    explicit = tmp_path / "ingest.toml"
+    _write_config(explicit, policy="compare", backends=("basic",))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user"))
+    monkeypatch.setattr(
+        "cognityx.client.Cogni.load",
+        lambda **_kwargs: pytest.fail("configuration inspection loaded Cogni"),
+    )
+
+    assert (
+        main(
+            [
+                "config",
+                "show",
+                "--component",
+                "ingest",
+                "--ingest-config",
+                str(explicit),
+            ]
+        )
+        == 0
+    )
+    shown = json.loads(capsys.readouterr().out)
+    assert shown["component"] == "ingest"
+    assert shown["master_config"]["path"] == str(explicit.resolve())
+
+    assert (
+        main(
+            [
+                "config",
+                "validate",
+                "--component",
+                "ingest",
+                "--ingest-config",
+                str(tmp_path / "missing"),
+            ]
+        )
+        == 2
+    )
+    invalid = json.loads(capsys.readouterr().out)
+    assert invalid["valid"] is False
+
+
+def test_aggregate_config_all_keeps_owner_reports_and_actual_root_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user"))
+    for name in (
+        "COGNITYX_CONTEXT_FILE",
+        "COGNITYX_INGEST_CONFIG",
+        "COGNITYX_STORAGE_CONFIG",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        "cognityx.client.Cogni.load",
+        lambda **_kwargs: pytest.fail("configuration inspection loaded Cogni"),
+    )
+    storage_root = tmp_path / "storage"
+
+    assert (
+        main(
+            [
+                "config",
+                "show",
+                "--component",
+                "all",
+                "--storage-root",
+                str(storage_root),
+            ]
+        )
+        == 0
+    )
+    report = json.loads(capsys.readouterr().out)
+
+    assert report["component"] == "sdk"
+    assert set(report["dependencies"]) == {"context", "ingest", "storage"}
+    storage = report["dependencies"]["storage"]
+    assert storage["overrides"][0]["previous"] == str(
+        StorageConfig.built_in().profiles["local-main"].options["root"]
+    )
+    assert storage["overrides"][0]["effective"] == str(storage_root)
+    assert storage["field_sources"][storage["overrides"][0]["key"]] == (
+        "--storage-root"
+    )
+
+
+def test_ingest_config_alias_statically_validates_bounded_inference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user"))
+    bounded = tmp_path / "bounded.toml"
+    bounded.write_text('[inference]\nmodel="model-a"\n', encoding="utf-8")
+
+    assert main(["ingest-config", "show", "--inference-config", str(bounded)]) == 0
+    shown = json.loads(capsys.readouterr().out)
+    selected = shown["runtime_selections"]["bounded_inference"]
+    assert selected["path"] == str(bounded.resolve())
+    assert (
+        selected["sha256"]
+        == __import__("hashlib").sha256(bounded.read_bytes()).hexdigest()
+    )
+
+    malformed = tmp_path / "malformed.toml"
+    malformed.write_text("[inference", encoding="utf-8")
+    assert (
+        main(["ingest-config", "validate", "--inference-config", str(malformed)]) == 2
+    )
+    assert json.loads(capsys.readouterr().out)["valid"] is False
 
 
 def test_project_configuration_is_discovered_from_cwd(
@@ -103,16 +249,19 @@ def test_cli_override_and_show_report_effective_sources(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty-user-config"))
 
-    assert main(
-        [
-            "ingest-config",
-            "show",
-            "--parser-policy",
-            "fixed",
-            "--parser-backend",
-            "basic",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "ingest-config",
+                "show",
+                "--parser-policy",
+                "fixed",
+                "--parser-backend",
+                "basic",
+            ]
+        )
+        == 0
+    )
     shown = json.loads(capsys.readouterr().out)
 
     assert shown["ingest"]["parser_policy"] == "fixed"
@@ -126,9 +275,7 @@ def test_cli_override_and_show_report_effective_sources(
         "execution_active": False,
         "execution_control": "parser_policy",
     }
-    assert shown["sources"]["routing.adaptive_mode"] == (
-        "derived:ingest.parser_policy"
-    )
+    assert shown["sources"]["routing.adaptive_mode"] == ("derived:ingest.parser_policy")
 
 
 @pytest.mark.parametrize(
@@ -233,7 +380,7 @@ def test_validate_reports_valid_configuration(
         ('[ingest]\nrouting_mode = "deterministic"\n', "routing_mode"),
         ('[ingest.routing]\nmode = "deterministic"\n', "routing"),
         ('[ingest]\nparser_backends = ["basic", "basic"]\n', "duplicates"),
-        ('[ingest]\nparser_backends = []\n', "non-empty"),
+        ("[ingest]\nparser_backends = []\n", "non-empty"),
         ('[secrets]\ntoken = "must-not-appear"\n', "secrets"),
     ),
 )

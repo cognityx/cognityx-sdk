@@ -12,14 +12,16 @@ from __future__ import annotations
 
 import argparse
 import base64
-from datetime import timedelta
 import json
-from pathlib import Path
+import os
 import re
 import sys
 import time
-from typing import Any
 import warnings
+from datetime import timedelta
+from hashlib import sha256
+from pathlib import Path
+from typing import Any
 
 from cognityx_ingest.control import IngestAuthorizationError
 from cognityx_ingest.models import SourceAssetBatchResult
@@ -73,6 +75,11 @@ def _common_parser() -> argparse.ArgumentParser:
         help="Advanced bounded-resolution configuration.",
     )
     parser.add_argument(
+        "--ingest-config",
+        type=Path,
+        help="Explicit highest-precedence persistent Ingest settings file.",
+    )
+    parser.add_argument(
         "--parser-policy",
         choices=("fixed", "rule", "fallback", "compare", "agent"),
         default=None,
@@ -104,9 +111,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="group", required=True)
 
-    storage = commands.add_parser(
-        "storage", help="Inspect configured Storage objects."
-    )
+    storage = commands.add_parser("storage", help="Inspect configured Storage objects.")
     storage_commands = storage.add_subparsers(dest="action", required=True)
     locate_storage = storage_commands.add_parser("locate", parents=[common])
     locate_storage.add_argument("storage_uri", metavar="storage-uri")
@@ -127,9 +132,7 @@ def _parser() -> argparse.ArgumentParser:
     recursion.add_argument(
         "--recursive", dest="recursive", action="store_true", default=True
     )
-    recursion.add_argument(
-        "--no-recursive", dest="recursive", action="store_false"
-    )
+    recursion.add_argument("--no-recursive", dest="recursive", action="store_false")
     listing = asset_commands.add_parser("list", parents=[common])
     listing.add_argument("--bundle")
     for name in ("show", "locate"):
@@ -153,7 +156,9 @@ def _parser() -> argparse.ArgumentParser:
     delete_bundle = bundle_commands.add_parser("delete", parents=[common])
     delete_bundle.add_argument("bundle_id")
     delete_bundle.add_argument("--recursive", action="store_true")
-    delete_bundle.add_argument("--yes", action="store_true", help="Confirm logical deletion.")
+    delete_bundle.add_argument(
+        "--yes", action="store_true", help="Confirm logical deletion."
+    )
     delete_bundle.add_argument("--reason")
     bundle_commands.add_parser("deleted", parents=[common])
 
@@ -169,11 +174,21 @@ def _parser() -> argparse.ArgumentParser:
     ingest_config = commands.add_parser(
         "ingest-config", help="Inspect effective Ingest configuration."
     )
-    ingest_config_commands = ingest_config.add_subparsers(
-        dest="action", required=True
-    )
+    ingest_config_commands = ingest_config.add_subparsers(dest="action", required=True)
     ingest_config_commands.add_parser("show", parents=[common])
     ingest_config_commands.add_parser("validate", parents=[common])
+
+    config = commands.add_parser(
+        "config", help="Inspect effective component configuration."
+    )
+    config_commands = config.add_subparsers(dest="action", required=True)
+    for name in ("show", "validate"):
+        leaf = config_commands.add_parser(name, parents=[common])
+        leaf.add_argument(
+            "--component",
+            choices=("all", "ingest", "storage", "context"),
+            default="all",
+        )
 
     jobs = commands.add_parser(
         "job", aliases=("jobs",), help="Inspect or cancel ingest work."
@@ -198,7 +213,9 @@ def _parser() -> argparse.ArgumentParser:
             leaf.add_argument("--yes", action="store_true")
 
     documents = commands.add_parser(
-        "document", aliases=("documents",), help="Inspect or remove generated documents."
+        "document",
+        aliases=("documents",),
+        help="Inspect or remove generated documents.",
     )
     document_commands = documents.add_subparsers(dest="action", required=True)
     document_commands.add_parser("list", parents=[common])
@@ -229,7 +246,9 @@ def _parser() -> argparse.ArgumentParser:
     resolve.add_argument("document_id")
     resolve.add_argument("address_id")
 
-    cleanup = commands.add_parser("cleanup", help="Plan or execute physical Blob cleanup.")
+    cleanup = commands.add_parser(
+        "cleanup", help="Plan or execute physical Blob cleanup."
+    )
     cleanup_commands = cleanup.add_subparsers(dest="action", required=True)
     blobs = cleanup_commands.add_parser(
         "blobs",
@@ -238,7 +257,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     confirmation = blobs.add_mutually_exclusive_group()
     confirmation.add_argument("--dry-run", action="store_true")
-    confirmation.add_argument("--yes", action="store_true", help="Execute the fresh plan.")
+    confirmation.add_argument(
+        "--yes", action="store_true", help="Execute the fresh plan."
+    )
     blobs.add_argument("--older-than", default="7d", metavar="DURATION")
     blobs.add_argument("--batch-size", type=int, default=100)
 
@@ -256,26 +277,24 @@ def _parser() -> argparse.ArgumentParser:
     run_experiment.add_argument("--execution-id")
     run_experiment.add_argument("--resume", action="store_true")
     run_experiment.add_argument("--dry-run", action="store_true")
-    run_experiment.add_argument(
-        "--storage-root", type=Path, default=Path("experiment-storage")
-    )
-    run_experiment.add_argument("--storage-config", type=Path)
+    run_experiment_storage = run_experiment.add_mutually_exclusive_group()
+    run_experiment_storage.add_argument("--storage-root", type=Path)
+    run_experiment_storage.add_argument("--storage-config", type=Path)
     run_experiment.add_argument("--results-repo", type=Path)
     run_experiment.add_argument("--push-results", action="store_true")
     experiment_preflight = experiment_commands.add_parser("preflight")
     experiment_preflight.add_argument("research_yaml", type=Path)
     experiment_preflight.add_argument("--execution-id")
-    experiment_preflight.add_argument(
-        "--storage-root", type=Path, default=Path("experiment-storage")
-    )
-    experiment_preflight.add_argument("--storage-config", type=Path)
+    experiment_preflight_storage = experiment_preflight.add_mutually_exclusive_group()
+    experiment_preflight_storage.add_argument("--storage-root", type=Path)
+    experiment_preflight_storage.add_argument("--storage-config", type=Path)
     experiment_preflight.add_argument("--results-repo", type=Path, required=True)
     experiment_preflight.add_argument("--push-results", action="store_true")
     experiment_status = experiment_commands.add_parser("status")
     experiment_status.add_argument("execution_id")
-    experiment_status.add_argument(
-        "--storage-root", type=Path, default=Path("experiment-storage")
-    )
+    experiment_status_storage = experiment_status.add_mutually_exclusive_group()
+    experiment_status_storage.add_argument("--storage-root", type=Path)
+    experiment_status_storage.add_argument("--storage-config", type=Path)
     for name in ("research-summary", "paper-material"):
         leaf = experiment_commands.add_parser(name)
         leaf.add_argument("target")
@@ -300,7 +319,9 @@ def _scopes(values: list[str]) -> dict[str, str]:
             raise ValueError(f"Malformed --scope {value!r}; expected KEY=VALUE.")
         key, selected = value.split("=", 1)
         if not key or not selected:
-            raise ValueError(f"Malformed --scope {value!r}; expected non-empty KEY=VALUE.")
+            raise ValueError(
+                f"Malformed --scope {value!r}; expected non-empty KEY=VALUE."
+            )
         scopes[key] = selected
     return scopes
 
@@ -361,6 +382,7 @@ def _load(args: argparse.Namespace) -> Cogni:
         catalog_path=getattr(args, "catalog_path", None),
         jobs_database=getattr(args, "jobs_database", None),
         inference_config=getattr(args, "inference_config", None),
+        ingest_config=getattr(args, "ingest_config", None),
         parser_policy=getattr(args, "parser_policy", None),
         parser_backends=(
             tuple(args.parser_backend)
@@ -380,13 +402,209 @@ def _resolved_ingest_configuration(args: argparse.Namespace) -> dict[str, object
     makes no network call, persists nothing, and returns secret-free JSON data.
     """
     selected = load_ingest_configuration(
+        config_file=getattr(args, "ingest_config", None),
         parser_policy=getattr(args, "parser_policy", None),
         parser_backends=getattr(args, "parser_backend", None),
         inference_enabled=(
             True if getattr(args, "inference_config", None) is not None else None
         ),
     )
-    return selected.to_dict()
+    report = selected.to_dict()
+    report["runtime_selections"] = {
+        "bounded_inference": _bounded_inference_selection(args),
+    }
+    return report
+
+
+def _bounded_inference_selection(
+    args: argparse.Namespace,
+) -> dict[str, object] | None:
+    explicit = getattr(args, "inference_config", None)
+    selected_value = explicit or os.environ.get("COGNITYX_INGEST_INFERENCE_CONFIG")
+    if selected_value is None:
+        return None
+    from cognityx_ingest.enhancement import load_resolution_config
+
+    selected_path = Path(selected_value).expanduser().resolve()
+    resolved = load_resolution_config(selected_path)
+    if resolved is None:
+        raise ValueError("Bounded Inference configuration was not resolved.")
+    return {
+        "kind": "runtime-selection",
+        "path": str(selected_path),
+        "selected_by": (
+            "--inference-config"
+            if explicit is not None
+            else "COGNITYX_INGEST_INFERENCE_CONFIG"
+        ),
+        "sha256": sha256(selected_path.read_bytes()).hexdigest(),
+        "valid": True,
+    }
+
+
+def _configuration_report(
+    args: argparse.Namespace, component: str
+) -> dict[str, object]:
+    """Resolve owner diagnostics without constructing any operational service."""
+    from cognityx_resource import resolve_resource_context
+    from cognityx_storage import StorageConfigResolution, resolve_storage_config
+
+    context: dict[str, object] | None = None
+    if component in {"all", "context"}:
+        context_overrides = {
+            name: getattr(args, name)
+            for name in (
+                "context_type",
+                "principal_id",
+                "tenant_id",
+                "project_id",
+                "workspace_id",
+            )
+            if getattr(args, name, None) is not None
+        }
+        scopes = _scopes(getattr(args, "scope", []))
+        if scopes:
+            context_overrides["scopes"] = scopes
+        context = resolve_resource_context(
+            context_file=getattr(args, "context_file", None),
+            overrides=context_overrides or None,
+        ).to_dict()
+
+    storage: dict[str, object] | None = None
+    if component in {"all", "storage"}:
+        storage_root = getattr(args, "storage_root", None)
+        if storage_root is not None:
+            storage_resolution = StorageConfigResolution(
+                config=StorageConfig.built_in(root=storage_root),
+                selected_by="built-in",
+                path=None,
+                file_sha256=None,
+            )
+            storage = storage_resolution.to_dict()
+            previous = StorageConfig.built_in().profiles["local-main"].options["root"]
+            effective = storage_resolution.config.profiles["local-main"].options["root"]
+            if previous != effective:
+                storage["overrides"] = [
+                    {
+                        "key": "storage.profiles.local-main.options.root",
+                        "source": "--storage-root",
+                        "previous": previous,
+                        "effective": effective,
+                        "changed": True,
+                    }
+                ]
+                storage["field_sources"]["storage.profiles.local-main.options.root"] = (
+                    "--storage-root"
+                )
+        else:
+            storage = resolve_storage_config(
+                config_file=getattr(args, "storage_config", None)
+            ).to_dict()
+
+    ingest_report: dict[str, object] | None = None
+    inference_selection: dict[str, object] | None = None
+    if component in {"all", "ingest"}:
+        ingest = load_ingest_configuration(
+            config_file=getattr(args, "ingest_config", None),
+            parser_policy=getattr(args, "parser_policy", None),
+            parser_backends=getattr(args, "parser_backend", None),
+            inference_enabled=(
+                True if getattr(args, "inference_config", None) is not None else None
+            ),
+        )
+        ingest_report = ingest.diagnostic_dict()
+    if ingest_report is not None and ingest.inference_enabled:
+        inference_selection = _bounded_inference_selection(args)
+        if inference_selection is None:
+            raise ValueError(
+                "Ingest inference is enabled but no bounded Inference configuration is selected."
+            )
+    if ingest_report is not None:
+        ingest_report["runtime_selections"] = {
+            "bounded_inference": inference_selection,
+        }
+
+    if component == "ingest":
+        assert ingest_report is not None
+        return ingest_report
+    if component == "storage":
+        assert storage is not None
+        return storage
+    if component == "context":
+        assert context is not None
+        return context
+    assert ingest_report is not None and storage is not None and context is not None
+    reports = {"ingest": ingest_report, "storage": storage, "context": context}
+    errors = [
+        item
+        for report in reports.values()
+        for item in report.get("errors", [])  # type: ignore[union-attr]
+    ]
+    warnings_payload = [
+        item
+        for report in reports.values()
+        for item in report.get("warnings", [])  # type: ignore[union-attr]
+    ]
+    return {
+        "component": "sdk",
+        "configuration_kind": "composed-dependencies",
+        "valid": not errors
+        and all(bool(report["valid"]) for report in reports.values()),
+        "master_config": {
+            "kind": "built-in",
+            "path": None,
+            "selected_by": "built-in",
+            "sha256": None,
+        },
+        "config_layers": [],
+        "field_sources": {},
+        "overrides": [],
+        "effective": {
+            "owned_persistent_master": None,
+            "independent_components": ["ingest", "storage", "context"],
+        },
+        "dependencies": reports,
+        "runtime_selections": {
+            "catalog_path": {
+                "value": str(args.catalog_path) if args.catalog_path else None,
+                "selected_by": "--catalog-path"
+                if args.catalog_path
+                else "component-default",
+            },
+            "jobs_database": {
+                "value": str(args.jobs_database) if args.jobs_database else None,
+                "selected_by": "--jobs-database"
+                if args.jobs_database
+                else "component-default",
+            },
+            "bounded_inference": inference_selection,
+        },
+        "warnings": warnings_payload,
+        "errors": errors,
+    }
+
+
+def _configuration_error(component: str, exc: Exception) -> dict[str, object]:
+    return {
+        "component": "sdk" if component == "all" else component,
+        "configuration_kind": (
+            "composed-dependencies" if component == "all" else "persistent-component"
+        ),
+        "valid": False,
+        "master_config": {
+            "kind": "built-in",
+            "path": None,
+            "selected_by": "built-in",
+            "sha256": None,
+        },
+        "config_layers": [],
+        "field_sources": {},
+        "overrides": [],
+        "effective": {},
+        "warnings": [],
+        "errors": [{"code": "configuration_invalid", "message": str(exc)}],
+        "_exit_code": 2,
+    }
 
 
 def _execute(args: argparse.Namespace) -> Any:
@@ -418,10 +636,18 @@ def _execute(args: argparse.Namespace) -> Any:
         )
         args.group = compatibility[args.group]
     if args.group == "ingest-config":
-        selected = _resolved_ingest_configuration(args)
+        try:
+            selected = _resolved_ingest_configuration(args)
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
+            return _configuration_error("ingest", exc)
         if args.action == "validate":
             return {"valid": True, **selected}
         return selected
+    if args.group == "config":
+        try:
+            return _configuration_report(args, args.component)
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
+            return _configuration_error(args.component, exc)
     if args.group == "experiment":
         return _execute_experiment(args)
     cogni = _load(args)
@@ -447,15 +673,21 @@ def _execute(args: argparse.Namespace) -> Any:
                 else registration(result)
             )
         if args.action == "list":
-            return [source_asset(item) for item in cogni.assets.list(bundle=args.bundle)]
+            return [
+                source_asset(item) for item in cogni.assets.list(bundle=args.bundle)
+            ]
         if args.action == "show":
             return source_asset(cogni.assets.get(args.asset_id))
         if args.action == "locate":
             return asset_location(cogni.assets.locate(args.asset_id))
         if args.action == "delete":
             if not args.yes:
-                raise _ConfirmationRequired("assets delete requires --yes; no deletion was performed.")
-            return asset_deletion(cogni.assets.delete(args.asset_id, reason=args.reason))
+                raise _ConfirmationRequired(
+                    "assets delete requires --yes; no deletion was performed."
+                )
+            return asset_deletion(
+                cogni.assets.delete(args.asset_id, reason=args.reason)
+            )
         return [source_asset(item) for item in cogni.assets.list_deleted()]
     if args.group == "bundle":
         if args.action == "create":
@@ -466,7 +698,9 @@ def _execute(args: argparse.Namespace) -> Any:
             return cogni.doc_bundles.locate(args.bundle_id)
         if args.action == "delete":
             if not args.yes:
-                raise _ConfirmationRequired("doc-bundles delete requires --yes; no deletion was performed.")
+                raise _ConfirmationRequired(
+                    "doc-bundles delete requires --yes; no deletion was performed."
+                )
             return bundle_deletion(
                 cogni.doc_bundles.delete(
                     args.bundle_id, recursive=args.recursive, reason=args.reason
@@ -514,7 +748,9 @@ def _execute(args: argparse.Namespace) -> Any:
         if args.action == "locate":
             return cogni.runs.locate(args.run_id)
         if not args.yes:
-            raise _ConfirmationRequired("runs delete requires --yes; no deletion was performed.")
+            raise _ConfirmationRequired(
+                "runs delete requires --yes; no deletion was performed."
+            )
         cogni.ingest_manager.delete_run(execution, args.run_id)
         return {"deleted_run_id": args.run_id}
     if args.group == "document":
@@ -526,7 +762,9 @@ def _execute(args: argparse.Namespace) -> Any:
         if args.action == "locate":
             return cogni.documents.locate(args.document_id)
         if not args.yes:
-            raise _ConfirmationRequired("documents delete requires --yes; no deletion was performed.")
+            raise _ConfirmationRequired(
+                "documents delete requires --yes; no deletion was performed."
+            )
         cogni.ingest_manager.delete_document(execution, args.document_id)
         return {"deleted_document_id": args.document_id}
     if args.group == "artifact":
@@ -579,7 +817,8 @@ def _execute_experiment(args: argparse.Namespace) -> None:
             if args.dry_run:
                 forwarded.append("--dry-run")
         if args.action in {"preflight", "run"}:
-            forwarded.extend(("--storage-root", str(args.storage_root)))
+            if args.storage_root is not None:
+                forwarded.extend(("--storage-root", str(args.storage_root)))
             if args.storage_config:
                 forwarded.extend(("--storage-config", str(args.storage_config)))
             if args.results_repo:
@@ -587,18 +826,16 @@ def _execute_experiment(args: argparse.Namespace) -> None:
             if args.push_results:
                 forwarded.append("--push-results")
     elif args.action == "status":
-        forwarded.extend(
-            (str(args.execution_id), "--storage-root", str(args.storage_root))
-        )
+        forwarded.append(str(args.execution_id))
+        if args.storage_root is not None:
+            forwarded.extend(("--storage-root", str(args.storage_root)))
+        if args.storage_config is not None:
+            forwarded.extend(("--storage-config", str(args.storage_config)))
     else:
-        forwarded.extend(
-            (str(args.target), "--results-repo", str(args.results_repo))
-        )
+        forwarded.extend((str(args.target), "--results-repo", str(args.results_repo)))
     result = experiments_main(forwarded)
     if result != 0:
-        raise RuntimeError(
-            f"cognityx-experiments returned non-zero status {result}"
-        )
+        raise RuntimeError(f"cognityx-experiments returned non-zero status {result}")
     return None
 
 
@@ -631,9 +868,9 @@ def _watch_job(cogni: Cogni, job_id: str, *, owner_id: str, after: int) -> None:
         for event in events:
             print(json.dumps(event, sort_keys=True), flush=True)
             after = int(event["sequence"])
-        status = cogni.ingest_manager.show_job(
-            execution, job_id, owner_id=owner_id
-        )["job"]["state"]
+        status = cogni.ingest_manager.show_job(execution, job_id, owner_id=owner_id)[
+            "job"
+        ]["state"]
         if status in terminal:
             return
         time.sleep(0.25)
@@ -648,7 +885,11 @@ def _artifact(name: str, payload: bytes) -> dict[str, Any]:
     does not inspect schemas, alter bytes, expose paths, or perform persistence.
     """
     try:
-        return {"artifact": name, "encoding": "utf-8", "content": payload.decode("utf-8")}
+        return {
+            "artifact": name,
+            "encoding": "utf-8",
+            "content": payload.decode("utf-8"),
+        }
     except UnicodeDecodeError:
         return {
             "artifact": name,
@@ -689,5 +930,9 @@ def main(argv: list[str] | None = None) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     if payload is not None:
+        exit_code = 0
+        if isinstance(payload, dict):
+            exit_code = int(payload.pop("_exit_code", 0))
         print(json.dumps(payload, indent=2, sort_keys=True))
+        return exit_code
     return 0

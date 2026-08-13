@@ -15,9 +15,15 @@ CLI. The resolved, secret-free values and their sources are available as
 Advanced callers may provide `context`, `context_file`, `context_overrides`,
 `cwd`, `user_context_file`, `storage_runtime`, `storage_config`,
 `catalog_path`, `jobs_database`, `inference_config`, `parser_policy`,
-`parser_backends`, `inference_enabled`, `user_ingest_config_file`, and an
+`parser_backends`, `inference_enabled`, `ingest_config`,
+`user_ingest_config_file`, and an
 Ingest `control` client. Explicit parser values override discovered
 configuration. Conflicting context or Storage arguments are rejected.
+
+`ingest_config=PATH` selects an explicit highest-precedence persistent Ingest
+layer. Omitting it preserves built-in, user, project, and
+`COGNITYX_INGEST_CONFIG` discovery. It is independent of `inference_config`,
+which remains a bounded runtime selection.
 
 `cogni.ingest_configuration.to_dict()` includes a derived adaptive routing term
 with `execution_active: false`. It explains how the executable legacy policy is

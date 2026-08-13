@@ -163,8 +163,10 @@ pip install "cognityx[rich-ingest]"
 Inspect or validate the effective settings before a run:
 
 ```bash
-cogni ingest-config show
-cogni ingest-config validate
+cogni config show [--component all|ingest|storage|context]
+cogni config validate [--component all|ingest|storage|context]
+cogni ingest-config show      # compatibility Ingest-only view
+cogni ingest-config validate  # compatibility Ingest-only view
 ```
 
 `show` reports each effective value and whether it came from the command line,

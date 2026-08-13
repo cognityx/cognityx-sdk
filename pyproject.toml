@@ -10,11 +10,11 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
 dependencies = [
-  "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@b23220b69fcb182e681cf13276c37474666c9bd2",
-  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@4b47b898b2fb465263d8c44350d4241f52b13c90",
+  "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@a740b0d54681236ac0699277a82e502ed385c954",
+  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@9e51398e89d5df952e37b766b62f31bb2519b5ff",
   "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@56716dbdebde9bd92069cbd415aa7f657d55d9dd",
   "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@e4312fd461df97ffcefc54352b9b76f1dd6e6860",
-  "cognityx-experiments @ git+https://github.com/cognityx/cognityx-experiments.git@c6e6e44318305c6302118ecd8e7dd07e0a23cda7",
+  "cognityx-experiments @ git+https://github.com/cognityx/cognityx-experiments.git@0a12279dfd953c2c598a3060d590225ef28c95d1",
 ]
 
 [project.scripts]
@@ -22,26 +22,26 @@ cogni = "cognityx.cli:main"
 
 [tool.uv]
 override-dependencies = [
-  "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@b23220b69fcb182e681cf13276c37474666c9bd2",
-  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@4b47b898b2fb465263d8c44350d4241f52b13c90",
+  "cognityx-resource @ git+https://github.com/cognityx/cognityx-resource.git@a740b0d54681236ac0699277a82e502ed385c954",
+  "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@9e51398e89d5df952e37b766b62f31bb2519b5ff",
   "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@e4312fd461df97ffcefc54352b9b76f1dd6e6860",
-  "cognityx-inference[api,telemetry] @ git+https://github.com/cognityx/cognityx-inference.git@061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7",
-  "cognityx-experiments @ git+https://github.com/cognityx/cognityx-experiments.git@c6e6e44318305c6302118ecd8e7dd07e0a23cda7",
+  "cognityx-inference[api,telemetry] @ git+https://github.com/cognityx/cognityx-inference.git@fe9044a94e5450569f8bf3526a2a3228403483e7",
+  "cognityx-experiments @ git+https://github.com/cognityx/cognityx-experiments.git@0a12279dfd953c2c598a3060d590225ef28c95d1",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "mkdocs-material>=9"]
-inference = ["cognityx-inference[api,telemetry] @ git+https://github.com/cognityx/cognityx-inference.git@061cb6a9cfd9c999c4a6ac68f650a2b0f6efd3c7"]
+inference = ["cognityx-inference[api,telemetry] @ git+https://github.com/cognityx/cognityx-inference.git@fe9044a94e5450569f8bf3526a2a3228403483e7"]
 rich-ingest = ["cognityx-ingest[pymupdf,docling] @ git+https://github.com/cognityx/cognityx-ingest.git@56716dbdebde9bd92069cbd415aa7f657d55d9dd"]
 research-execution = [
   "cognityx-core @ git+https://github.com/cognityx/cognityx-core.git@571f2291852ad22fe8427172bca71fc6a7a74a3d",
-  "cognityx-training[training] @ git+https://github.com/cognityx/cognityx-training.git@bdc88a02f867ac509293b071e7df8d792d2f64cb",
-  "cognityx-evaluator @ git+https://github.com/cognityx/cognityx-evaluator.git@d65366e9533fe5ffe405f66b1c983499bb74c208",
+  "cognityx-training[training] @ git+https://github.com/cognityx/cognityx-training.git@c17119ee71941eba6e0f2b68023644c4383fee0d",
+  "cognityx-evaluator @ git+https://github.com/cognityx/cognityx-evaluator.git@4925de95c61d89ff3e1d8b0c367bbb779f2038f8",
 ]
 research-tracking = [
   "cognityx-observability[mlflow] @ git+https://github.com/cognityx/cognityx-observability.git@b02ec3c103d0b3fd22b7c33888155b763d6baa9f",
-  "cognityx-training[tracking] @ git+https://github.com/cognityx/cognityx-training.git@bdc88a02f867ac509293b071e7df8d792d2f64cb",
-  "cognityx-evaluator[tracking] @ git+https://github.com/cognityx/cognityx-evaluator.git@d65366e9533fe5ffe405f66b1c983499bb74c208",
+  "cognityx-training[tracking] @ git+https://github.com/cognityx/cognityx-training.git@c17119ee71941eba6e0f2b68023644c4383fee0d",
+  "cognityx-evaluator[tracking] @ git+https://github.com/cognityx/cognityx-evaluator.git@4925de95c61d89ff3e1d8b0c367bbb779f2038f8",
 ]
 
 [tool.pytest.ini_options]
