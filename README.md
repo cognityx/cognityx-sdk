@@ -28,7 +28,12 @@ cogni document show <document-id>
 cogni artifact read <document-id> source-graph
 cogni provenance resolve <document-id> <address-id>
 cogni storage locate storage://local-main/artifacts/example/report.json
+cogni job status <job-id> --human
 ```
+
+Structured command results remain JSON by default for applications and scripts.
+An explicit `--human` shows the same result as deterministic readable text;
+it does not run the operation again or look up additional data.
 
 The `cogni experiment` group validates and runs frozen research plans and
 assembles accumulated evidence. Cognityx Experiments still owns the compiler,

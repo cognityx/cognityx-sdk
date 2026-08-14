@@ -29,6 +29,7 @@ from cognityx_storage import StorageConfig, StorageRuntime
 
 from cognityx.artifacts import ARTIFACT_NAMES
 from cognityx.client import Cogni
+from cognityx.human import render_human
 from cognityx.ingest_config import load_ingest_configuration
 from cognityx.serialization import (
     asset_deletion,
@@ -92,6 +93,11 @@ def _common_parser() -> argparse.ArgumentParser:
         help="Approved parser backend, repeatable in fallback order.",
     )
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument(
+        "--human",
+        action="store_true",
+        help="Render the existing result as deterministic readable text.",
+    )
     return parser
 
 
@@ -272,6 +278,8 @@ def _parser() -> argparse.ArgumentParser:
         leaf = experiment_commands.add_parser(name)
         leaf.add_argument("research_yaml", type=Path)
         leaf.add_argument("--execution-id")
+        if name != "show-plan":
+            leaf.add_argument("--human", action="store_true")
     run_experiment = experiment_commands.add_parser("run")
     run_experiment.add_argument("research_yaml", type=Path)
     run_experiment.add_argument("--execution-id")
@@ -282,6 +290,7 @@ def _parser() -> argparse.ArgumentParser:
     run_experiment_storage.add_argument("--storage-config", type=Path)
     run_experiment.add_argument("--results-repo", type=Path)
     run_experiment.add_argument("--push-results", action="store_true")
+    run_experiment.add_argument("--human", action="store_true")
     experiment_preflight = experiment_commands.add_parser("preflight")
     experiment_preflight.add_argument("research_yaml", type=Path)
     experiment_preflight.add_argument("--execution-id")
@@ -290,15 +299,29 @@ def _parser() -> argparse.ArgumentParser:
     experiment_preflight_storage.add_argument("--storage-config", type=Path)
     experiment_preflight.add_argument("--results-repo", type=Path, required=True)
     experiment_preflight.add_argument("--push-results", action="store_true")
+    experiment_preflight.add_argument("--human", action="store_true")
     experiment_status = experiment_commands.add_parser("status")
     experiment_status.add_argument("execution_id")
     experiment_status_storage = experiment_status.add_mutually_exclusive_group()
     experiment_status_storage.add_argument("--storage-root", type=Path)
     experiment_status_storage.add_argument("--storage-config", type=Path)
+    experiment_status.add_argument("--human", action="store_true")
+    experiment_config = experiment_commands.add_parser("config")
+    experiment_config_commands = experiment_config.add_subparsers(
+        dest="config_action", required=True
+    )
+    for name in ("show", "validate"):
+        leaf = experiment_config_commands.add_parser(name)
+        selected = leaf.add_mutually_exclusive_group()
+        selected.add_argument("--storage-config", type=Path)
+        selected.add_argument("--storage-root", type=Path)
+        leaf.add_argument("--human", action="store_true")
     for name in ("research-summary", "paper-material"):
         leaf = experiment_commands.add_parser(name)
         leaf.add_argument("target")
         leaf.add_argument("--results-repo", type=Path, required=True)
+        if name == "paper-material":
+            leaf.add_argument("--human", action="store_true")
 
     describe = commands.add_parser("describe", parents=[common])
     describe.add_argument("--assets", action="store_true")
@@ -734,7 +757,13 @@ def _execute(args: argparse.Namespace) -> Any:
                 execution, args.job_id, owner_id=owner_id, after=args.after
             )
         if args.action == "watch":
-            _watch_job(cogni, args.job_id, owner_id=owner_id, after=args.after)
+            _watch_job(
+                cogni,
+                args.job_id,
+                owner_id=owner_id,
+                after=args.after,
+                human=args.human,
+            )
             return None
         return cogni.ingest_manager.request_cancel(
             execution, args.job_id, owner_id=owner_id
@@ -802,12 +831,26 @@ def _execute(args: argparse.Namespace) -> Any:
     return description(cogni.describe())
 
 
+class _DelegatedExit(Exception):
+    """Carry an already-rendered delegated command's documented exit code."""
+
+    def __init__(self, code: int) -> None:
+        super().__init__(code)
+        self.code = code
+
+
 def _execute_experiment(args: argparse.Namespace) -> None:
     """Delegate the complete research command to cognityx-experiments."""
     from cognityx_experiments.cli import main as experiments_main
 
     forwarded = [str(args.action)]
-    if args.action in {"validate", "plan", "show-plan", "preflight", "run"}:
+    if args.action == "config":
+        forwarded.append(str(args.config_action))
+        if args.storage_root is not None:
+            forwarded.extend(("--storage-root", str(args.storage_root)))
+        if args.storage_config is not None:
+            forwarded.extend(("--storage-config", str(args.storage_config)))
+    elif args.action in {"validate", "plan", "show-plan", "preflight", "run"}:
         forwarded.append(str(args.research_yaml))
         if args.execution_id:
             forwarded.extend(("--execution-id", str(args.execution_id)))
@@ -833,8 +876,12 @@ def _execute_experiment(args: argparse.Namespace) -> None:
             forwarded.extend(("--storage-config", str(args.storage_config)))
     else:
         forwarded.extend((str(args.target), "--results-repo", str(args.results_repo)))
+    if getattr(args, "human", False):
+        forwarded.append("--human")
     result = experiments_main(forwarded)
     if result != 0:
+        if args.action == "config":
+            raise _DelegatedExit(result)
         raise RuntimeError(f"cognityx-experiments returned non-zero status {result}")
     return None
 
@@ -850,7 +897,14 @@ class _ConfirmationRequired(ValueError):
     pass
 
 
-def _watch_job(cogni: Cogni, job_id: str, *, owner_id: str, after: int) -> None:
+def _watch_job(
+    cogni: Cogni,
+    job_id: str,
+    *,
+    owner_id: str,
+    after: int,
+    human: bool = False,
+) -> None:
     """Replay ordered job events until the owner-scoped job becomes terminal.
 
     ``cogni job watch`` calls this synchronous polling loop.  Each cycle creates a
@@ -866,7 +920,10 @@ def _watch_job(cogni: Cogni, job_id: str, *, owner_id: str, after: int) -> None:
             execution, job_id, owner_id=owner_id, after=after
         )
         for event in events:
-            print(json.dumps(event, sort_keys=True), flush=True)
+            rendered = (
+                render_human(event) if human else json.dumps(event, sort_keys=True)
+            )
+            print(rendered, flush=True)
             after = int(event["sequence"])
         status = cogni.ingest_manager.show_job(execution, job_id, owner_id=owner_id)[
             "job"
@@ -898,6 +955,19 @@ def _artifact(name: str, payload: bytes) -> dict[str, Any]:
         }
 
 
+def _write_artifact_human(payload: dict[str, Any]) -> None:
+    """Write a complete artifact envelope without altering its encoded content."""
+    content = str(payload["content"])
+    sys.stdout.write(
+        f"Artifact: {payload['artifact']}\n"
+        f"Encoding: {payload['encoding']}\n"
+        "Content:\n"
+        f"{content}"
+    )
+    if not content.endswith("\n"):
+        sys.stdout.write("\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run one ``cogni`` command and translate typed outcomes to exit codes.
 
@@ -912,6 +982,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         payload = _execute(args)
+    except _DelegatedExit as exc:
+        return exc.code
     except _ConfirmationRequired as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -933,6 +1005,12 @@ def main(argv: list[str] | None = None) -> int:
         exit_code = 0
         if isinstance(payload, dict):
             exit_code = int(payload.pop("_exit_code", 0))
-        print(json.dumps(payload, indent=2, sort_keys=True))
+        if getattr(args, "human", False):
+            if args.group == "artifact" and args.action == "read":
+                _write_artifact_human(payload)
+            else:
+                print(render_human(payload))
+        else:
+            print(json.dumps(payload, indent=2, sort_keys=True))
         return exit_code
     return 0

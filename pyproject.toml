@@ -14,7 +14,7 @@ dependencies = [
   "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@9e51398e89d5df952e37b766b62f31bb2519b5ff",
   "cognityx-ingest @ git+https://github.com/cognityx/cognityx-ingest.git@56716dbdebde9bd92069cbd415aa7f657d55d9dd",
   "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@e4312fd461df97ffcefc54352b9b76f1dd6e6860",
-  "cognityx-experiments @ git+https://github.com/cognityx/cognityx-experiments.git@0a12279dfd953c2c598a3060d590225ef28c95d1",
+  "cognityx-experiments @ git+https://github.com/cognityx/cognityx-experiments.git@aaf541eedc2dd62a9cfd652bbf8481f9f669e77b",
 ]
 
 [project.scripts]
@@ -26,7 +26,7 @@ override-dependencies = [
   "cognityx-storage @ git+https://github.com/cognityx/cognityx-storage.git@9e51398e89d5df952e37b766b62f31bb2519b5ff",
   "cognityx-jobs @ git+https://github.com/cognityx/cognityx-jobs.git@e4312fd461df97ffcefc54352b9b76f1dd6e6860",
   "cognityx-inference[api,telemetry] @ git+https://github.com/cognityx/cognityx-inference.git@fe9044a94e5450569f8bf3526a2a3228403483e7",
-  "cognityx-experiments @ git+https://github.com/cognityx/cognityx-experiments.git@0a12279dfd953c2c598a3060d590225ef28c95d1",
+  "cognityx-experiments @ git+https://github.com/cognityx/cognityx-experiments.git@aaf541eedc2dd62a9cfd652bbf8481f9f669e77b",
 ]
 
 [project.optional-dependencies]
